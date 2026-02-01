@@ -33,9 +33,15 @@ public:
 
     /**
      * @brief Get the hardware fingerprint as a hash string
-     * @return SHA-256 hash of the PRNU pattern
+     * @return BLAKE3 hash of the PRNU pattern
      */
     std::string getHardwareFingerprint() const;
+
+    /**
+     * @brief Get raw PRNU pattern bytes for binding with image data
+     * @return Vector of bytes representing the PRNU pattern
+     */
+    std::vector<uint8_t> getPRNUBytes() const;
 
     /**
      * @brief Verify if a frame came from the same camera

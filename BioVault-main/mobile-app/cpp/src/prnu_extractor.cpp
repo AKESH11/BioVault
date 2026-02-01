@@ -1,4 +1,5 @@
 #include "prnu_extractor.h"
+#include "crypto_utils.h"
 #ifdef HAVE_OPENCV
 #include <opencv2/imgproc.hpp>
 #endif
@@ -22,36 +23,61 @@ bool PRNUExtractor::extractPattern(const std::vector<cv::Mat>& frames) {
         return false;  // Need at least 50 frames for robust extraction
     }
 
-    std::vector<cv::Mat> noiseResiduals;
-    noiseResiduals.reserve(frames.size());
+    std::vector<cv::Mat> grayFrames;
+    grayFrames.reserve(frames.size());
 
-    // Extract noise residual from each frame
+    // Convert all frames to grayscale
     for (const auto& frame : frames) {
         if (frame.empty()) continue;
         
-        cv::Mat residual = calculateNoiseResidual(frame);
-        noiseResiduals.push_back(residual);
+        cv::Mat gray;
+        if (frame.channels() == 3) {
+            cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
+        } else {
+            gray = frame.clone();
+        }
+        gray.convertTo(gray, CV_32F);
+        grayFrames.push_back(gray);
     }
 
-    if (noiseResiduals.empty()) {
+    if (grayFrames.empty()) {
         return false;
     }
 
-    // Average all noise residuals to get PRNU pattern
-    m_prnuPattern = cv::Mat::zeros(noiseResiduals[0].size(), CV_32F);
-    
-    for (const auto& residual : noiseResiduals) {
-        cv::Mat temp;
-        residual.convertTo(temp, CV_32F);
-        m_prnuPattern += temp;
+    // Calculate mean frame across all frames
+    cv::Mat meanFrame = cv::Mat::zeros(grayFrames[0].size(), CV_32F);
+    for (const auto& frame : grayFrames) {
+        meanFrame += frame;
     }
+    meanFrame /= static_cast<float>(grayFrames.size());
+
+    // Extract PRNU noise by subtracting mean from each frame
+    std::vector<cv::Mat> noiseFrames;
+    noiseFrames.reserve(grayFrames.size());
     
-    m_prnuPattern /= static_cast<float>(noiseResiduals.size());
+    for (const auto& frame : grayFrames) {
+        cv::Mat noise;
+        cv::subtract(frame, meanFrame, noise);
+        noiseFrames.push_back(noise);
+    }
 
-    // Normalize
-    cv::normalize(m_prnuPattern, m_prnuPattern, 0, 1, cv::NORM_MINMAX);
+    // Average all noise patterns to get PRNU pattern (reduces random noise)
+    m_prnuPattern = cv::Mat::zeros(noiseFrames[0].size(), CV_32F);
+    for (const auto& noise : noiseFrames) {
+        m_prnuPattern += noise;
+    }
+    m_prnuPattern /= static_cast<float>(noiseFrames.size());
 
-    // Compute fingerprint hash
+    // Apply Wiener filter to enhance PRNU signal
+    cv::Mat filtered;
+    cv::GaussianBlur(m_prnuPattern, filtered, cv::Size(3, 3), 0.5);
+    cv::subtract(m_prnuPattern, filtered, m_prnuPattern);
+
+    // Normalize to [0, 255] range for consistent fingerprinting
+    cv::normalize(m_prnuPattern, m_prnuPattern, 0, 255, cv::NORM_MINMAX);
+    m_prnuPattern.convertTo(m_prnuPattern, CV_8U);
+
+    // Compute fingerprint hash using BLAKE3
     m_fingerprintHash = computeHash(m_prnuPattern);
     m_isCalibrated = true;
 
@@ -82,6 +108,31 @@ bool PRNUExtractor::loadPattern(const std::string& /*path*/) {
 
 std::string PRNUExtractor::getHardwareFingerprint() const {
     return m_fingerprintHash.empty() ? "mock_hardware_fingerprint" : m_fingerprintHash;
+}
+
+std::vector<uint8_t> PRNUExtractor::getPRNUBytes() const {
+#ifdef HAVE_OPENCV
+    if (!m_isCalibrated || m_prnuPattern.empty()) {
+        return std::vector<uint8_t>();
+    }
+    
+    std::vector<uint8_t> bytes;
+    if (m_prnuPattern.isContinuous()) {
+        bytes.assign(m_prnuPattern.data, 
+                    m_prnuPattern.data + m_prnuPattern.total() * m_prnuPattern.elemSize());
+    } else {
+        bytes.reserve(m_prnuPattern.total() * m_prnuPattern.elemSize());
+        for (int i = 0; i < m_prnuPattern.rows; ++i) {
+            const uint8_t* row_ptr = m_prnuPattern.ptr<uint8_t>(i);
+            bytes.insert(bytes.end(), row_ptr, 
+                        row_ptr + m_prnuPattern.cols * m_prnuPattern.elemSize());
+        }
+    }
+    return bytes;
+#else
+    // Mock implementation
+    return std::vector<uint8_t>(64, 0x42); // Mock 64-byte fingerprint
+#endif
 }
 
 #ifdef HAVE_OPENCV
@@ -187,22 +238,21 @@ cv::Mat PRNUExtractor::calculateNoiseResidual(const cv::Mat& image) const {
 }
 
 std::string PRNUExtractor::computeHash(const cv::Mat& pattern) const {
-    // Simple hash for demonstration - in production use SHA-256
-    std::vector<unsigned char> data;
+    // Extract pattern data as bytes
+    std::vector<uint8_t> data;
     if (pattern.isContinuous()) {
         data.assign(pattern.data, pattern.data + pattern.total() * pattern.elemSize());
+    } else {
+        // Handle non-continuous matrices
+        data.reserve(pattern.total() * pattern.elemSize());
+        for (int i = 0; i < pattern.rows; ++i) {
+            const uint8_t* row_ptr = pattern.ptr<uint8_t>(i);
+            data.insert(data.end(), row_ptr, row_ptr + pattern.cols * pattern.elemSize());
+        }
     }
 
-    // Create hex string from first 32 bytes
-    std::stringstream ss;
-    size_t hashSize = std::min(size_t(32), data.size());
-    
-    for (size_t i = 0; i < hashSize; ++i) {
-        ss << std::hex << std::setw(2) << std::setfill('0') 
-           << static_cast<int>(data[i]);
-    }
-
-    return ss.str();
+    // Use BLAKE3 for hardware fingerprint hash (via crypto_utils)
+    return crypto::CryptoUtils::blake3(data);
 }
 #endif
 

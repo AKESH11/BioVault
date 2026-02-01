@@ -43,6 +43,17 @@ public:
     static std::string blake3(const std::vector<uint8_t>& data);
 
     /**
+     * @brief Bind Device ID (PRNU fingerprint) with image data using BLAKE3
+     * @param deviceID Hardware fingerprint from PRNU extraction
+     * @param imageData Raw image/video frame data
+     * @return BLAKE3 hash binding device to image (Hardware DNA proof)
+     */
+    static std::string bindDeviceToImage(
+        const std::string& deviceID,
+        const std::vector<uint8_t>& imageData
+    );
+
+    /**
      * @brief Build multi-sig hash over FrameData + BPM + Signature (BLAKE3)
      * @param frameData Raw frame or frame-hash bytes
      * @param bpm Heart rate (BPM)

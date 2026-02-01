@@ -202,6 +202,31 @@ install(TARGETS ${PROJECT_NAME}
 install(FILES ${HEADERS} DESTINATION include/biovault)
 
 # ============================================================================
+# Examples (Optional)
+# ============================================================================
+option(BUILD_EXAMPLES "Build example programs" ON)
+
+if(BUILD_EXAMPLES)
+    # PRNU + BLAKE3 Demo
+    add_executable(prnu_blake3_demo examples/prnu_blake3_demo.cpp)
+    target_link_libraries(prnu_blake3_demo PRIVATE ${PROJECT_NAME})
+    target_include_directories(prnu_blake3_demo PRIVATE include)
+    
+    message(STATUS "Building examples:")
+    message(STATUS "  - prnu_blake3_demo")
+    
+    # rPPG Webcam Demo (if OpenCV available)
+    if(HAVE_OPENCV)
+        if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/examples/rppg_webcam_demo.cpp)
+            add_executable(rppg_webcam_demo examples/rppg_webcam_demo.cpp)
+            target_link_libraries(rppg_webcam_demo PRIVATE ${PROJECT_NAME})
+            target_include_directories(rppg_webcam_demo PRIVATE include)
+            message(STATUS "  - rppg_webcam_demo")
+        endif()
+    endif()
+endif()
+
+# ============================================================================
 # Build Summary
 # ============================================================================
 message(STATUS "==============================================")
