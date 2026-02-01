@@ -1,0 +1,16 @@
+{
+  "name": "bio-vault-shared",
+  "version": "1.0.0",
+  "description": "Shared utilities and types for Bio-Vault Protocol",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "dependencies": {
+    "ethers": "^6.10.0",
+    "crypto-js": "^4.2.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}

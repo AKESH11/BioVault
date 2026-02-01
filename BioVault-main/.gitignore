@@ -1,0 +1,60 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Build outputs
+build/
+dist/
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Mobile
+mobile-app/android/.gradle/
+mobile-app/android/build/
+mobile-app/ios/build/
+mobile-app/ios/Pods/
+*.apk
+*.ipa
+
+# Smart Contracts
+smart-contracts/artifacts/
+smart-contracts/cache/
+smart-contracts/typechain-types/
+coverage/
+coverage.json
+
+# ZK Circuits
+zkp-circuits/*.r1cs
+zkp-circuits/*.wasm
+zkp-circuits/*.sym
+zkp-circuits/build/
+
+# Environment
+.env
+.env.local
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+
+# Keys (NEVER commit private keys)
+*.key
+*.pem
+secrets/
