@@ -47,46 +47,87 @@ class StrongBoxManager(private val context: Context) {
 
     /**
      * Generates an EC P-256 key pair in AndroidKeyStore, preferring StrongBox.
+     * Falls back to standard TEE if StrongBox is unavailable.
      * Requires biometric authentication for every signature operation.
+     * 
+     * @return true if key generation succeeded (either StrongBox or TEE)
      */
     fun generateRealityKey(): Boolean {
+        // Try StrongBox first
+        if (tryGenerateKeyWithStrongBox()) {
+            android.util.Log.i("StrongBoxManager", "✅ Key generated in StrongBox HSM")
+            return true
+        }
+        
+        // Fallback to standard TEE
+        android.util.Log.w("StrongBoxManager", "⚠️ StrongBox unavailable, falling back to TEE")
+        return tryGenerateKeyWithTEE()
+    }
+    
+    /**
+     * Attempt to generate key with StrongBox backing
+     */
+    private fun tryGenerateKeyWithStrongBox(): Boolean {
+        if (!isStrongBoxSupported()) {
+            return false
+        }
+        
         return try {
             val kpg = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, ANDROID_KEYSTORE)
-
-            val builder = KeyGenParameterSpec.Builder(
-                REALITY_KEY_ALIAS,
-                KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY
-            )
-                .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
-                // Require per-use biometric authentication
-                .setUserAuthenticationRequired(true)
-                .setDigests(KeyProperties.DIGEST_NONE)
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                builder.setUserAuthenticationParameters(
-                    0,
-                    KeyProperties.AUTH_BIOMETRIC_STRONG
-                )
-            } else {
-                // Fallback: require auth for every use (0 seconds validity)
-                builder.setUserAuthenticationValidityDurationSeconds(0)
-            }
-
-            // Request StrongBox if available; gracefully fall back if not
-            if (isStrongBoxSupported()) {
-                try {
-                    builder.setIsStrongBoxBacked(true)
-                } catch (e: Exception) {
-                    // Some devices advertise StrongBox but disallow backing certain key types
-                }
-            }
-
+            val builder = buildKeyGenSpec()
+            builder.setIsStrongBoxBacked(true)
+            
             kpg.initialize(builder.build())
             kpg.generateKeyPair()
             true
         } catch (e: Exception) {
+            android.util.Log.d("StrongBoxManager", "StrongBox key generation failed: ${e.message}")
             false
         }
+    }
+    
+    /**
+     * Generate key with standard TEE (Trusted Execution Environment)
+     */
+    private fun tryGenerateKeyWithTEE(): Boolean {
+        return try {
+            val kpg = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, ANDROID_KEYSTORE)
+            val builder = buildKeyGenSpec()
+            builder.setIsStrongBoxBacked(false)  // Explicitly use TEE
+            
+            kpg.initialize(builder.build())
+            kpg.generateKeyPair()
+            android.util.Log.i("StrongBoxManager", "✅ Key generated in TEE (Trusted Execution Environment)")
+            true
+        } catch (e: Exception) {
+            android.util.Log.e("StrongBoxManager", "❌ TEE key generation failed: ${e.message}", e)
+            false
+        }
+    }
+    
+    /**
+     * Build common KeyGenParameterSpec for both StrongBox and TEE
+     */
+    private fun buildKeyGenSpec(): KeyGenParameterSpec.Builder {
+        val builder = KeyGenParameterSpec.Builder(
+            REALITY_KEY_ALIAS,
+            KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY
+        )
+            .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
+            .setUserAuthenticationRequired(true)
+            .setDigests(KeyProperties.DIGEST_NONE)
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            builder.setUserAuthenticationParameters(
+                0,
+                KeyProperties.AUTH_BIOMETRIC_STRONG
+            )
+        } else {
+            // Fallback for older Android versions
+            builder.setUserAuthenticationValidityDurationSeconds(0)
+        }
+        
+        return builder
     }
 
     /**
@@ -130,6 +171,36 @@ class StrongBoxManager(private val context: Context) {
             keyStore.containsAlias(REALITY_KEY_ALIAS)
         } catch (e: Exception) {
             false
+        }
+    }
+    
+    /**
+     * Check if the current key is backed by StrongBox
+     * @return true if key uses StrongBox, false if using TEE, null if key doesn't exist
+     */
+    fun isKeyInStrongBox(): Boolean? {
+        if (!hasRealityKey()) {
+            return null
+        }
+        
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
+                val entry = keyStore.getEntry(REALITY_KEY_ALIAS, null) as? KeyStore.PrivateKeyEntry
+                val keyInfo = android.security.keystore.KeyInfo::class.java
+                    .cast(entry?.privateKey?.let {
+                        val factory = java.security.KeyFactory.getInstance(it.algorithm, ANDROID_KEYSTORE)
+                        factory.getKeySpec(it, android.security.keystore.KeyInfo::class.java)
+                    })
+                keyInfo?.isInsideSecureHardware == true && 
+                keyInfo.securityLevel == android.security.keystore.KeyProperties.SECURITY_LEVEL_STRONGBOX
+            } else {
+                // Cannot determine on older Android versions
+                null
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("StrongBoxManager", "Error checking key location: ${e.message}")
+            null
         }
     }
     

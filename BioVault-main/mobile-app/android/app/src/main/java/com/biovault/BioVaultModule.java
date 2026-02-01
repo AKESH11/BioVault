@@ -16,10 +16,12 @@ public class BioVaultModule extends ReactContextBaseJavaModule {
     }
 
     private final ReactApplicationContext reactContext;
+    private StrongBoxManager strongBoxManager;
 
     public BioVaultModule(ReactApplicationContext context) {
         super(context);
         this.reactContext = context;
+        this.strongBoxManager = new StrongBoxManager(context);
     }
 
     @Override
@@ -106,6 +108,53 @@ public class BioVaultModule extends ReactContextBaseJavaModule {
             promise.resolve(success);
         } catch (Exception e) {
             promise.reject("TEST_ERROR", e.getMessage());
+        }
+    }
+    
+    @ReactMethod
+    public void initializeStrongBox(Promise promise) {
+        try {
+            boolean isSupported = strongBoxManager.isStrongBoxSupported();
+            boolean keyGenerated = strongBoxManager.generateRealityKey();
+            
+            if (!keyGenerated) {
+                promise.reject("STRONGBOX_ERROR", "Failed to generate reality key");
+                return;
+            }
+            
+            Boolean isInStrongBox = strongBoxManager.isKeyInStrongBox();
+            String securityLevel = isInStrongBox == null ? "unknown" : 
+                                  (isInStrongBox ? "strongbox" : "tee");
+            
+            com.facebook.react.bridge.WritableMap result = com.facebook.react.bridge.Arguments.createMap();
+            result.putBoolean("strongBoxSupported", isSupported);
+            result.putBoolean("keyGenerated", true);
+            result.putString("securityLevel", securityLevel);
+            
+            promise.resolve(result);
+        } catch (Exception e) {
+            promise.reject("STRONGBOX_ERROR", e.getMessage());
+        }
+    }
+    
+    @ReactMethod
+    public void getSecurityInfo(Promise promise) {
+        try {
+            boolean hasKey = strongBoxManager.hasRealityKey();
+            Boolean isInStrongBox = strongBoxManager.isKeyInStrongBox();
+            
+            com.facebook.react.bridge.WritableMap result = com.facebook.react.bridge.Arguments.createMap();
+            result.putBoolean("hasRealityKey", hasKey);
+            
+            if (hasKey && isInStrongBox != null) {
+                result.putString("securityLevel", isInStrongBox ? "strongbox" : "tee");
+            } else {
+                result.putString("securityLevel", "unknown");
+            }
+            
+            promise.resolve(result);
+        } catch (Exception e) {
+            promise.reject("INFO_ERROR", e.getMessage());
         }
     }
 

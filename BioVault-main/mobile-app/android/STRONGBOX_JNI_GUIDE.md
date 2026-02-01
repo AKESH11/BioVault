@@ -203,13 +203,37 @@ dependencies {
 import { NativeModules } from 'react-native';
 const { BioVaultModule } = NativeModules;
 
-// 1. Initialize StrongBox (in MainActivity.java)
-const strongBoxManager = new StrongBoxManager(context);
-if (strongBoxManager.isStrongBoxSupported()) {
-    strongBoxManager.generateRealityKey();
+// 1. Initialize StrongBox with automatic fallback
+async function initializeHardwareSecurity() {
+    try {
+        const result = await BioVaultModule.initializeStrongBox();
+        
+        console.log('StrongBox supported:', result.strongBoxSupported);
+        console.log('Key generated:', result.keyGenerated);
+        console.log('Security level:', result.securityLevel);
+        
+        if (result.securityLevel === 'strongbox') {
+            console.log('✅ Using StrongBox HSM (highest security)');
+        } else if (result.securityLevel === 'tee') {
+            console.log('✅ Using TEE (Trusted Execution Environment)');
+        }
+        
+        return result;
+    } catch (error) {
+        console.error('Failed to initialize hardware security:', error);
+        throw error;
+    }
 }
 
-// 2. Generate proof with biometric authentication
+// 2. Check current security level
+async function checkSecurityLevel() {
+    const info = await BioVaultModule.getSecurityInfo();
+    console.log('Has reality key:', info.hasRealityKey);
+    console.log('Security level:', info.securityLevel);
+    return info;
+}
+
+// 3. Generate proof with biometric authentication
 async function captureAuthenticVideo(frameData, bpm, hardwareID) {
     try {
         // frameData: base64-encoded video frame
@@ -225,22 +249,66 @@ async function captureAuthenticVideo(frameData, bpm, hardwareID) {
         // proof contains: [32-byte hash] + [ECDSA signature]
         console.log('Proof generated:', proof);
         
-        // 3. Anchor proof to blockchain
+        // 4. Anchor proof to blockchain
         await anchorToBlockchain(proof);
         
     } catch (error) {
         if (error.code === 'PROOF_ERROR') {
-            // Biometric authentication failed or StrongBox unavailable
+            // Biometric authentication failed or hardware unavailable
             console.error('Failed to generate proof:', error.message);
         }
     }
 }
 
-// 4. Test StrongBox functionality
+// 5. Test hardware functionality
 async function testHardwareSecurity() {
     const isWorking = await BioVaultModule.testStrongBox();
-    console.log('StrongBox working:', isWorking);
+    console.log('Hardware signature working:', isWorking);
+    return isWorking;
 }
+```
+
+---
+
+## StrongBox vs TEE Fallback
+
+The system automatically detects hardware capabilities and falls back gracefully:
+
+```
+┌─────────────────────────────────────────────────────┐
+│            Hardware Security Hierarchy              │
+├─────────────────────────────────────────────────────┤
+│                                                      │
+│  1️⃣ Try StrongBox HSM (Highest Security)            │
+│     • Dedicated secure chip                         │
+│     • Tamper-resistant hardware                     │
+│     • Available on: Pixel 6+, Samsung S21+          │
+│     • setIsStrongBoxBacked(true)                    │
+│            ↓                                         │
+│            ❌ Not Available?                         │
+│            ↓                                         │
+│  2️⃣ Fallback to TEE (High Security)                 │
+│     • Trusted Execution Environment                 │
+│     • Isolated from main OS                         │
+│     • Available on: Most Android 8+ devices         │
+│     • setIsStrongBoxBacked(false)                   │
+│            ↓                                         │
+│            ✅ Key Generated                          │
+│                                                      │
+└─────────────────────────────────────────────────────┘
+```
+
+### Logs Example
+
+**On Pixel 6 with StrongBox:**
+```
+I/StrongBoxManager: ✅ Key generated in StrongBox HSM
+```
+
+**On Emulator without StrongBox:**
+```
+W/StrongBoxManager: ⚠️ StrongBox unavailable, falling back to TEE
+I/StrongBoxManager: ✅ Key generated in TEE (Trusted Execution Environment)
 ```
 
 ---
@@ -366,13 +434,31 @@ adb logcat -s BioVaultCore:D *:S
 ```kotlin
 val strongBoxManager = StrongBoxManager(context)
 Log.d("BioVault", "StrongBox supported: ${strongBoxManager.isStrongBoxSupported()}")
+
+// Generate key (automatically falls back to TEE if StrongBox unavailable)
+val success = strongBoxManager.generateRealityKey()
+Log.d("BioVault", "Key generated: $success")
+
+// Check where the key is stored
+val isInStrongBox = strongBoxManager.isKeyInStrongBox()
+when (isInStrongBox) {
+    true -> Log.i("BioVault", "✅ Key in StrongBox HSM")
+    false -> Log.i("BioVault", "✅ Key in TEE")
+    null -> Log.w("BioVault", "⚠️ Key doesn't exist or cannot determine location")
+}
 ```
 
 ### Test JNI Bridge
 
 ```javascript
+// Test hardware signature with automatic fallback
 const isWorking = await BioVaultModule.testStrongBox();
-console.log('JNI bridge working:', isWorking);
+console.log('Hardware signature working:', isWorking);
+
+// Get detailed security information
+const securityInfo = await BioVaultModule.getSecurityInfo();
+console.log('Security level:', securityInfo.securityLevel);
+// Output: "strongbox", "tee", or "unknown"
 ```
 
 ### View Native Logs
@@ -384,7 +470,11 @@ adb logcat | grep -E "BioVault|StrongBox|JNI"
 ### Common Issues
 
 **Issue**: `UnsatisfiedLinkError: dlopen failed: library "libBioVaultCore.so" not found`  
-**Fix**: Rebuild with `./gradlew clean assembleDebug`
+**Fix**: This is normal on emulators and older devices. The system automatically falls back to TEE. Check logs for:
+```
+W/StrongBoxManager: ⚠️ StrongBox unavailable, falling back to TEE
+I/StrongBoxManager: ✅ Key generated in TEE
+```
 
 **Issue**: Biometric prompt doesn't appear  
 **Fix**: Ensure device has biometric enrolled in Settings → Security
