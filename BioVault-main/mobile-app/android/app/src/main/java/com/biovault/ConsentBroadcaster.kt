@@ -173,11 +173,6 @@ class ConsentBroadcaster(private val context: Context) {
         advertiser.startAdvertising(settings, data, cb)
     }
 
-    private fun stopConsentAdvert() {
-        currentCallback?.let { advertiser?.stopAdvertising(it) }
-        currentCallback = null
-    }
-
     private var scanCallback: ScanCallback? = null
 
     /**

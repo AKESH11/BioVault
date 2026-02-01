@@ -5,11 +5,8 @@ project(BioVaultCore)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Find JNI
-find_package(JNI REQUIRED)
-
 # Path to shared C++ core (relative to this CMakeLists.txt)
-set(CPP_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../cpp")
+set(CPP_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../cpp")
 
 # Source files
 set(CORE_SOURCES
@@ -17,6 +14,9 @@ set(CORE_SOURCES
     ${CPP_CORE_DIR}/src/prnu_extractor.cpp
     ${CPP_CORE_DIR}/src/crypto_utils.cpp
     ${CPP_CORE_DIR}/src/bio_vault_native.cpp
+    ${CPP_CORE_DIR}/src/BioVaultExtractor.cpp
+    ${CPP_CORE_DIR}/src/consensus_handshake.cpp
+    ${CPP_CORE_DIR}/src/proof_of_reality.cpp
 )
 
 # JNI bridge source
@@ -24,10 +24,41 @@ set(JNI_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/native-lib.cpp
 )
 
-# Optional: OpenCV (if available on Android)
-# Uncomment if you have OpenCV for Android
-# set(OpenCV_DIR "/path/to/OpenCV-android-sdk/sdk/native/jni")
-# find_package(OpenCV REQUIRED)
+# ============================================================================
+# OpenCV Android SDK (4.10+) - direct path via OPENCV_ANDROID_SDK
+# ============================================================================
+# Expect OPENCV_ANDROID_SDK to point to the unpacked OpenCV-android-sdk root
+# Example: export OPENCV_ANDROID_SDK=$HOME/OpenCV-android-sdk
+
+if(NOT DEFINED ENV{OPENCV_ANDROID_SDK})
+    message(FATAL_ERROR "OPENCV_ANDROID_SDK env var not set. Set it to OpenCV-android-sdk (4.10+) root.")
+endif()
+
+set(OpenCV_ANDROID_SDK $ENV{OPENCV_ANDROID_SDK})
+set(OpenCV_ANDROID_INCLUDE "${OpenCV_ANDROID_SDK}/sdk/native/jni/include")
+set(OpenCV_ANDROID_LIB "${OpenCV_ANDROID_SDK}/sdk/native/libs/${ANDROID_ABI}/libopencv_java4.so")
+
+if(NOT EXISTS "${OpenCV_ANDROID_LIB}")
+    message(FATAL_ERROR "OpenCV lib not found for ABI ${ANDROID_ABI} at ${OpenCV_ANDROID_LIB}")
+endif()
+
+add_library(opencv_java4 SHARED IMPORTED)
+set_target_properties(opencv_java4 PROPERTIES IMPORTED_LOCATION ${OpenCV_ANDROID_LIB})
+
+set(HAVE_OPENCV ON)
+
+# ============================================================================
+# BLAKE3 via FetchContent (C implementation)
+# ============================================================================
+include(FetchContent)
+
+FetchContent_Declare(blake3
+    GIT_REPOSITORY https://github.com/BLAKE3-team/BLAKE3.git
+    GIT_TAG 1.5.0
+    SOURCE_SUBDIR c
+)
+FetchContent_MakeAvailable(blake3)
+set(HAVE_BLAKE3 ON)
 
 # Create shared library for Android
 add_library(${PROJECT_NAME} SHARED
@@ -37,25 +68,24 @@ add_library(${PROJECT_NAME} SHARED
 
 # Include directories
 target_include_directories(${PROJECT_NAME} PRIVATE
-    ${JNI_INCLUDE_DIRS}
     ${CPP_CORE_DIR}/include
+    ${OpenCV_ANDROID_INCLUDE}
+    ${blake3_SOURCE_DIR}/c
 )
 
 # Link libraries
 target_link_libraries(${PROJECT_NAME}
-    ${JNI_LIBRARIES}
     android
     log
+    opencv_java4
+    blake3
 )
 
 # Compile definitions
 # Note: OpenSSL, libsodium, BLAKE3 may need to be built for Android separately
-# For now, we use fallback implementations
 target_compile_definitions(${PROJECT_NAME} PRIVATE
-    # Uncomment when crypto libraries are available:
-    # HAVE_OPENSSL
-    # HAVE_LIBSODIUM
-    # HAVE_BLAKE3
+    HAVE_OPENCV
+    HAVE_BLAKE3
 )
 
 # If OpenCV is available for Android:

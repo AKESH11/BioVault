@@ -79,28 +79,26 @@ std::string CryptoUtils::sha256(const std::vector<uint8_t>& data) {
         ss << std::setw(2) << static_cast<int>(hash[i]);
     }
     return ss.str();
+#elif defined(HAVE_LIBSODIUM)
+    unsigned char hash[crypto_hash_sha256_BYTES];
+    crypto_hash_sha256(hash, data.data(), data.size());
+
+    // Hex encoding via libsodium
+    std::vector<char> hex(crypto_hash_sha256_BYTES * 2 + 1);
+    sodium_bin2hex(hex.data(), hex.size(), hash, crypto_hash_sha256_BYTES);
+    return std::string(hex.data());
 #else
-    // Fallback mock implementation (INSECURE - for development only)
-    static bool warningShown = false;
-    if (!warningShown) {
-        std::cerr << "⚠️  WARNING: Using mock SHA-256! Install OpenSSL for production." << std::endl;
-        warningShown = true;
-    }
-    
+    std::cerr << "⚠️  WARNING: SHA-256 falling back to mock implementation (no OpenSSL/libsodium)" << std::endl;
     uint32_t hash = 0;
     for (const auto& byte : data) {
         hash = ((hash << 5) + hash) + byte;
     }
-    
     std::stringstream ss;
     ss << std::hex << std::setw(8) << std::setfill('0') << hash;
-    
-    // Pad to 64 characters (32 bytes)
     std::string result = ss.str();
     while (result.length() < 64) {
         result += "0";
     }
-    
     return result;
 #endif
 }
@@ -114,12 +112,19 @@ std::string CryptoUtils::blake3(const std::vector<uint8_t>& data) {
     blake3_hasher_update(&hasher, data.data(), data.size());
     blake3_hasher_finalize(&hasher, hash, BLAKE3_OUT_LEN);
     
+    // Hex encoding via libsodium if available
+#ifdef HAVE_LIBSODIUM
+    std::vector<char> hex(BLAKE3_OUT_LEN * 2 + 1);
+    sodium_bin2hex(hex.data(), hex.size(), hash, BLAKE3_OUT_LEN);
+    return std::string(hex.data());
+#else
     std::stringstream ss;
     ss << std::hex << std::setfill('0');
     for (int i = 0; i < BLAKE3_OUT_LEN; i++) {
         ss << std::setw(2) << static_cast<int>(hash[i]);
     }
     return ss.str();
+#endif
 #else
     // Fallback to SHA-256 if BLAKE3 not available
     static bool warningShown = false;

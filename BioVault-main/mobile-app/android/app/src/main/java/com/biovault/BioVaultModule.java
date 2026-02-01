@@ -30,7 +30,7 @@ public class BioVaultModule extends ReactContextBaseJavaModule {
     }
 
     // Native method declarations (implemented in C++)
-    private native String initialize();
+    private native String nativeInitialize();
     private native String processFrame(String frameData, int width, int height, String faceBounds);
     private native String calibrateHardware(String calibrationFramesJson);
     private native String generateAnchorHash(String frameData, int bpm, String hardwareID);
@@ -46,7 +46,7 @@ public class BioVaultModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void init(Promise promise) {
         try {
-            String result = initialize();
+            String result = nativeInitialize();
             promise.resolve(result);
         } catch (Exception e) {
             promise.reject("INIT_ERROR", e.getMessage());
