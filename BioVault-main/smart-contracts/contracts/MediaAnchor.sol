@@ -28,6 +28,10 @@ contract MediaAnchor is Ownable, ReentrancyGuard {
         bool isRevoked;             // Can be revoked if consent withdrawn
         string ipfsHash;            // IPFS CID for encrypted media storage
         VerificationStatus status;  // Current verification status
+        string proofOfRealityHash;  // BLAKE3 hash of Proof of Reality metadata
+        string proofOfRealityIPFS;  // IPFS CID of full Proof of Reality JSON
+        bool allUniqueSignals;      // True if no replay attacks detected
+        uint8 detectedFaces;        // Number of faces detected
     }
     
     enum VerificationStatus {
@@ -61,7 +65,9 @@ contract MediaAnchor is Ownable, ReentrancyGuard {
         string indexed mediaHash,
         address indexed creator,
         uint256 timestamp,
-        string hardwareID
+        string hardwareID,
+        bool allUniqueSignals,
+        uint8 detectedFaces
     );
     
     event ConsentAdded(
@@ -86,19 +92,27 @@ contract MediaAnchor is Ownable, ReentrancyGuard {
     constructor() Ownable(msg.sender) {}
     
     /**
-     * @dev Anchor a new media record to the blockchain
+     * @dev Anchor a new media record to the blockchain with Proof of Reality
      * @param _mediaHash Unique hash combining media + biometrics + hardware
      * @param _bioSignature Composite biometric signature
      * @param _hardwareID Hardware fingerprint (PRNU)
      * @param _consensusParties Addresses of all consenting parties
      * @param _ipfsHash IPFS CID where encrypted media is stored
+     * @param _proofOfRealityHash BLAKE3 hash of Proof of Reality metadata
+     * @param _proofOfRealityIPFS IPFS CID of full Proof of Reality JSON
+     * @param _allUniqueSignals True if no replay attacks detected
+     * @param _detectedFaces Number of faces detected
      */
     function anchorMedia(
         string memory _mediaHash,
         string memory _bioSignature,
         string memory _hardwareID,
         address[] memory _consensusParties,
-        string memory _ipfsHash
+        string memory _ipfsHash,
+        string memory _proofOfRealityHash,
+        string memory _proofOfRealityIPFS,
+        bool _allUniqueSignals,
+        uint8 _detectedFaces
     ) external nonReentrant {
         require(bytes(_mediaHash).length > 0, "Media hash cannot be empty");
         require(bytes(mediaRecords[_mediaHash].mediaHash).length == 0, "Media already anchored");
@@ -114,6 +128,10 @@ contract MediaAnchor is Ownable, ReentrancyGuard {
         record.isRevoked = false;
         record.ipfsHash = _ipfsHash;
         record.status = VerificationStatus.Verified;
+        record.proofOfRealityHash = _proofOfRealityHash;
+        record.proofOfRealityIPFS = _proofOfRealityIPFS;
+        record.allUniqueSignals = _allUniqueSignals;
+        record.detectedFaces = _detectedFaces;
         
         // Track media for creator
         creatorMedia[msg.sender].push(_mediaHash);
@@ -123,7 +141,7 @@ contract MediaAnchor is Ownable, ReentrancyGuard {
             participantMedia[_consensusParties[i]].push(_mediaHash);
         }
         
-        emit MediaAnchored(_mediaHash, msg.sender, block.timestamp, _hardwareID);
+        emit MediaAnchored(_mediaHash, msg.sender, block.timestamp, _hardwareID, _allUniqueSignals, _detectedFaces);
         
         // Emit consent events
         for (uint i = 0; i < _consensusParties.length; i++) {

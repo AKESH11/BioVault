@@ -36,6 +36,11 @@ public class BioVaultModule extends ReactContextBaseJavaModule {
     private native String generateAnchorHash(String frameData, int bpm, String hardwareID);
     private native byte[] generateBioVaultProof(byte[] frameData, int bpm, String hardwareID);
     private native boolean testStrongBoxSignature();
+    private native boolean initConsensusSession(String sessionId, int[] expectedFaceIds, 
+                                                 byte[] videoFrameHash, String hardwareDNA);
+    private native boolean appendConsensusSignature(String sessionId, int faceId, int bpm,
+                                                     byte[] signature, byte[] publicKey);
+    private native String finalizeConsensus(String sessionId);
     private native void reset();
 
     @ReactMethod
@@ -155,6 +160,69 @@ public class BioVaultModule extends ReactContextBaseJavaModule {
             promise.resolve(result);
         } catch (Exception e) {
             promise.reject("INFO_ERROR", e.getMessage());
+        }
+    }
+    
+    @ReactMethod
+    public void startConsensusSession(String sessionId, com.facebook.react.bridge.ReadableArray faceIds,
+                                      String videoFrameHashBase64, String hardwareDNA, Promise promise) {
+        try {
+            // Convert faceIds array
+            int[] faceIdArray = new int[faceIds.size()];
+            for (int i = 0; i < faceIds.size(); i++) {
+                faceIdArray[i] = faceIds.getInt(i);
+            }
+            
+            // Decode video frame hash
+            byte[] frameHash = android.util.Base64.decode(videoFrameHashBase64, android.util.Base64.DEFAULT);
+            
+            // Initialize consensus session in C++
+            boolean success = initConsensusSession(sessionId, faceIdArray, frameHash, hardwareDNA);
+            
+            if (!success) {
+                promise.reject("CONSENSUS_ERROR", "Failed to initialize consensus session");
+                return;
+            }
+            
+            promise.resolve(true);
+        } catch (Exception e) {
+            promise.reject("CONSENSUS_ERROR", e.getMessage());
+        }
+    }
+    
+    @ReactMethod
+    public void addConsensusSignature(String sessionId, int faceId, int bpm,
+                                      String signatureBase64, String publicKeyBase64, Promise promise) {
+        try {
+            // Decode signature and public key
+            byte[] signature = android.util.Base64.decode(signatureBase64, android.util.Base64.DEFAULT);
+            byte[] publicKey = android.util.Base64.decode(publicKeyBase64, android.util.Base64.DEFAULT);
+            
+            // Append signature to consensus session in C++
+            boolean success = appendConsensusSignature(sessionId, faceId, bpm, signature, publicKey);
+            
+            promise.resolve(success);
+        } catch (Exception e) {
+            promise.reject("CONSENSUS_ERROR", e.getMessage());
+        }
+    }
+    
+    @ReactMethod
+    public void finalizeConsensusSession(String sessionId, Promise promise) {
+        try {
+            // Finalize and get result from C++
+            String resultJson = finalizeConsensus(sessionId);
+            
+            if (resultJson == null) {
+                promise.reject("CONSENSUS_ERROR", "Session not found");
+                return;
+            }
+            
+            // Parse JSON and return as map
+            // For simplicity, return raw JSON string
+            promise.resolve(resultJson);
+        } catch (Exception e) {
+            promise.reject("CONSENSUS_ERROR", e.getMessage());
         }
     }
 
