@@ -32,6 +32,8 @@ public class BioVaultModule extends ReactContextBaseJavaModule {
     private native String processFrame(String frameData, int width, int height, String faceBounds);
     private native String calibrateHardware(String calibrationFramesJson);
     private native String generateAnchorHash(String frameData, int bpm, String hardwareID);
+    private native byte[] generateBioVaultProof(byte[] frameData, int bpm, String hardwareID);
+    private native boolean testStrongBoxSignature();
     private native void reset();
 
     @ReactMethod
@@ -72,6 +74,38 @@ public class BioVaultModule extends ReactContextBaseJavaModule {
             promise.resolve(result);
         } catch (Exception e) {
             promise.reject("HASH_ERROR", e.getMessage());
+        }
+    }
+    
+    @ReactMethod
+    public void createBioVaultProof(String frameDataBase64, int bpm, String hardwareID, Promise promise) {
+        try {
+            // Decode base64 frame data
+            byte[] frameData = android.util.Base64.decode(frameDataBase64, android.util.Base64.DEFAULT);
+            
+            // Generate proof with StrongBox signature
+            byte[] proof = generateBioVaultProof(frameData, bpm, hardwareID);
+            
+            if (proof == null || proof.length == 0) {
+                promise.reject("PROOF_ERROR", "Failed to generate proof. Check biometric authentication.");
+                return;
+            }
+            
+            // Encode proof as base64 for React Native
+            String proofBase64 = android.util.Base64.encodeToString(proof, android.util.Base64.NO_WRAP);
+            promise.resolve(proofBase64);
+        } catch (Exception e) {
+            promise.reject("PROOF_ERROR", e.getMessage());
+        }
+    }
+    
+    @ReactMethod
+    public void testStrongBox(Promise promise) {
+        try {
+            boolean success = testStrongBoxSignature();
+            promise.resolve(success);
+        } catch (Exception e) {
+            promise.reject("TEST_ERROR", e.getMessage());
         }
     }
 
