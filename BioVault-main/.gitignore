@@ -1,10 +1,15 @@
-# Dependencies
+# Node modules
 node_modules/
-*/node_modules/
+**/node_modules/
 
 # Build outputs
 build/
 dist/
+*.wasm
+*.r1cs
+*.sym
+*.zkey
+*.wtns
 *.o
 *.a
 *.so
@@ -12,31 +17,11 @@ dist/
 *.dll
 *.exe
 
-# Mobile
-mobile-app/android/.gradle/
-mobile-app/android/build/
-mobile-app/ios/build/
-mobile-app/ios/Pods/
-*.apk
-*.ipa
-
-# Smart Contracts
-smart-contracts/artifacts/
-smart-contracts/cache/
-smart-contracts/typechain-types/
-coverage/
-coverage.json
-
-# ZK Circuits
-zkp-circuits/*.r1cs
-zkp-circuits/*.wasm
-zkp-circuits/*.sym
-zkp-circuits/build/
-
-# Environment
+# Environment files
 .env
 .env.local
-*.log
+*.key
+*.pem
 
 # IDE
 .vscode/
@@ -48,6 +33,46 @@ zkp-circuits/build/
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# ZKP artifacts (large files)
+powersOfTau28_hez_final_14.ptau
+verify_0000.zkey
+verify_final.zkey
+zkp-circuits/build/
+
+# Android
+*.apk
+*.aab
+local.properties
+.gradle/
+mobile-app/android/.gradle/
+mobile-app/android/build/
+
+# iOS
+*.ipa
+Pods/
+*.xcworkspace
+mobile-app/ios/build/
+mobile-app/ios/Pods/
+
+# Smart Contracts
+smart-contracts/artifacts/
+smart-contracts/cache/
+smart-contracts/typechain-types/
+coverage/
+coverage.json
+
+# C++ build
+CMakeCache.txt
+CMakeFiles/
+
+# Test outputs
+.nyc_output/
 
 # CMake
 CMakeCache.txt
