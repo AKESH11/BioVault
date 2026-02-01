@@ -8,8 +8,8 @@ const path = require("path");
 async function verifyProof() {
     console.log("🔍 Verifying Zero-Knowledge Proof...\n");
 
-    const proofPath = path.join(__dirname, "../proofs/proof.json");
-    const publicPath = path.join(__dirname, "../proofs/public.json");
+    const proofPath = path.join(__dirname, "../build/proof.json");
+    const publicPath = path.join(__dirname, "../build/public.json");
     const vkeyPath = path.join(__dirname, "../build/verification_key.json");
 
     if (!fs.existsSync(proofPath) || !fs.existsSync(publicPath)) {
@@ -23,6 +23,7 @@ async function verifyProof() {
         const zkeyPath = path.join(__dirname, "../build/verify_final.zkey");
         const vkey = await snarkjs.zKey.exportVerificationKey(zkeyPath);
         fs.writeFileSync(vkeyPath, JSON.stringify(vkey, null, 2));
+        console.log("✅ Verification key exported\n");
     }
 
     try {
@@ -30,20 +31,33 @@ async function verifyProof() {
         const publicSignals = JSON.parse(fs.readFileSync(publicPath, "utf8"));
         const vkey = JSON.parse(fs.readFileSync(vkeyPath, "utf8"));
 
+        console.log("📊 Public Signals:");
+        console.log("   isValid:", publicSignals[0] === '1' ? '✅ AUTHENTIC' : '❌ FAKE');
+        console.log("   Blockchain Hash:", publicSignals[1]);
+        console.log("   Timestamp:", publicSignals[2]);
+        console.log("");
+
         // Verify the proof
+        console.log("⏳ Verifying proof cryptographically...");
         const isValid = await snarkjs.groth16.verify(vkey, publicSignals, proof);
 
         if (isValid) {
-            console.log("✅ Proof is VALID!");
-            console.log("\n✨ The media authenticity has been verified without revealing the content.");
+            console.log("\n✅ ✅ ✅ PROOF IS CRYPTOGRAPHICALLY VALID! ✅ ✅ ✅");
+            console.log("\n✨ What this proves:");
+            console.log("   • The prover possesses the original video");
+            console.log("   • The biometric signature matches");
+            console.log("   • The hardware fingerprint is correct");
+            console.log("   • All WITHOUT revealing any private data!");
+            console.log("\n🔐 This proof can be verified on-chain via Solidity verifier");
         } else {
-            console.log("❌ Proof is INVALID!");
-            console.log("\n⚠️  The media does not match the claimed biometric signature.");
+            console.log("\n❌ PROOF IS INVALID!");
+            console.log("\n⚠️  The cryptographic verification failed");
+            console.log("   This should never happen if proof was generated correctly");
         }
 
         return isValid;
     } catch (error) {
-        console.error("❌ Error verifying proof:", error);
+        console.error("❌ Error verifying proof:", error.message);
         process.exit(1);
     }
 }

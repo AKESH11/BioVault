@@ -9,15 +9,16 @@ async function generateProof() {
     console.log("🔐 Generating Zero-Knowledge Proof...\n");
 
     // Example private inputs (would come from the actual media)
+    // NOTE: Signal names MUST match the circuit definition in verify.circom
     const input = {
         // Public inputs (visible on blockchain)
-        publicHash: "12345678901234567890",  // The hash stored on-chain
-        timestamp: "1706745600",              // Unix timestamp
+        blockchainAnchoredHash: "12345678901234567890123456789012",  // 32-char hash
+        timestamp: "1706745600000",                                   // Unix milliseconds
         
-        // Private inputs (kept secret)
-        videoPixels: "9876543210987654",      // Hash of video sample
-        bioSignature: "72",                   // Heart rate (BPM)
-        hardwareID: "1122334455"              // Device fingerprint
+        // Private inputs (kept secret - never revealed!)
+        videoPixelsHash: "98765432109876543210987654321098",         // Video hash
+        userPulseSignature: "72000000000000000000000000000000",      // BPM signature
+        hardwarePRNU: "11111111222222223333333344444444"             // Device fingerprint
     };
 
     const wasmPath = path.join(__dirname, "../build/verify_js/verify.wasm");
@@ -42,16 +43,30 @@ async function generateProof() {
         );
 
         console.log("✅ Proof generated successfully!\n");
-        console.log("📋 Proof:");
+        
+        console.log("🎯 Proof Output:");
+        console.log("   isValid:", publicSignals[0] === '1' ? '✅ AUTHENTIC' : '❌ FAKE');
+        
+        if (publicSignals[0] === '1') {
+            console.log("\n✨ This proof cryptographically demonstrates:");
+            console.log("   • You possess the original video");
+            console.log("   • The biometric signature matches");
+            console.log("   • The hardware fingerprint is correct");
+            console.log("   • All WITHOUT revealing any private data!");
+        } else {
+            console.log("\n⚠️  Proof shows media does NOT match blockchain record");
+        }
+        
+        console.log("\n📋 Full Proof:");
         console.log(JSON.stringify(proof, null, 2));
         
         console.log("\n📋 Public Signals:");
         console.log(JSON.stringify(publicSignals, null, 2));
 
         // Save proof and public signals
-        const outputDir = path.join(__dirname, "../proofs");
+        const outputDir = path.join(__dirname, "../build");
         if (!fs.existsSync(outputDir)) {
-            fs.mkdirSync(outputDir);
+            fs.mkdirSync(outputDir, { recursive: true });
         }
 
         fs.writeFileSync(
@@ -64,8 +79,8 @@ async function generateProof() {
             JSON.stringify(publicSignals, null, 2)
         );
 
-        console.log("\n💾 Proof saved to: proofs/proof.json");
-        console.log("💾 Public signals saved to: proofs/public.json");
+        console.log("\n💾 Proof saved to: build/proof.json");
+        console.log("💾 Public signals saved to: build/public.json");
 
         return { proof, publicSignals };
     } catch (error) {
