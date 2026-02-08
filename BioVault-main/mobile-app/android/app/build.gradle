@@ -1,11 +1,7 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
-apply plugin: "com.facebook.react"
-
-react {}
 
 def enableProguardInReleaseBuilds = false
-def jscFlavor = 'org.webkit:android-jsc:+'
 
 android {
     namespace "com.biovault"
@@ -23,22 +19,28 @@ android {
         // React Native Camera defines product flavors; pick one explicitly to satisfy variant selection.
         missingDimensionStrategy 'react-native-camera', 'general'
 
-        externalNativeBuild {
-            cmake {
-                cppFlags "-std=c++17 -frtti -fexceptions"
-                arguments "-DANDROID_STL=c++_shared"
-            }
-        }
+        // Native build disabled until OpenCV SDK is downloaded
+        // externalNativeBuild {
+        //     cmake {
+        //         cppFlags "-std=c++17 -frtti -fexceptions"
+        //         arguments "-DANDROID_STL=c++_shared"
+        //     }
+        // }
 
         ndk {
             abiFilters "arm64-v8a", "x86_64"
         }
     }
 
-    externalNativeBuild {
-        cmake {
-            path "src/main/cpp/CMakeLists.txt"
-        }
+    // Native build disabled until OpenCV SDK is downloaded
+    // externalNativeBuild {
+    //     cmake {
+    //         path "src/main/cpp/CMakeLists.txt"
+    //     }
+    // }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     signingConfigs {
@@ -72,17 +74,19 @@ android {
 }
 
 dependencies {
-    implementation("com.facebook.react:react-android")
-
-    if (hermesEnabled.toBoolean()) {
-        implementation("com.facebook.react:hermes-android")
-    } else {
-        implementation jscFlavor
-    }
-
+    implementation("com.facebook.react:react-android:0.73.11")
+    implementation("com.facebook.react:hermes-android:0.73.11")
+    
     implementation "androidx.appcompat:appcompat:1.6.1"
     implementation "androidx.biometric:biometric:1.2.0-alpha05"
 }
 
-apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle")
-applyNativeModulesAppBuildGradle(project)
+// Apply native modules if available
+def nativeModulesGradle = file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle")
+if (!nativeModulesGradle.exists()) {
+    nativeModulesGradle = file("../../node_modules/react-native/node_modules/@react-native-community/cli-platform-android/native_modules.gradle")
+}
+if (nativeModulesGradle.exists()) {
+    apply from: nativeModulesGradle
+    applyNativeModulesAppBuildGradle(project)
+}

@@ -42,6 +42,14 @@ public class BioVaultModule extends ReactContextBaseJavaModule {
                                                      byte[] signature, byte[] publicKey);
     private native String finalizeConsensus(String sessionId);
     private native void reset();
+    
+    // Camera bridge native methods (implemented in camera_bridge.cpp)
+    private native boolean nativeInitializeCamera(String cascadePath);
+    private native String nativeProcessCameraFrame(byte[] frameData, int width, int height, int format);
+    private native String nativeProcessMultiFace(byte[] frameData, int width, int height);
+    private native boolean nativeStartRPPGSession();
+    private native String nativeStopRPPGSession();
+    private native void nativeReleaseCamera();
 
     @ReactMethod
     public void init(Promise promise) {
@@ -229,5 +237,96 @@ public class BioVaultModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void resetEngine() {
         reset();
+    }
+    
+    // ============================================
+    // Camera Integration Methods
+    // ============================================
+    
+    @ReactMethod
+    public void initializeCamera(Promise promise) {
+        try {
+            // Get path to OpenCV cascade files (bundled with OpenCV SDK)
+            String cascadePath = "/data/local/tmp/haarcascade_frontalface_default.xml";
+            boolean success = nativeInitializeCamera(cascadePath);
+            
+            if (success) {
+                promise.resolve(true);
+            } else {
+                promise.reject("CAMERA_INIT_ERROR", "Failed to initialize camera bridge");
+            }
+        } catch (Exception e) {
+            promise.reject("CAMERA_INIT_ERROR", e.getMessage());
+        }
+    }
+    
+    @ReactMethod
+    public void processCameraFrame(String frameDataBase64, int width, int height, 
+                                   int format, Promise promise) {
+        try {
+            // Decode base64 frame data
+            byte[] frameData = android.util.Base64.decode(frameDataBase64, android.util.Base64.DEFAULT);
+            
+            // Process through native camera bridge
+            String result = nativeProcessCameraFrame(frameData, width, height, format);
+            
+            if (result != null) {
+                promise.resolve(result);
+            } else {
+                promise.reject("PROCESS_ERROR", "Failed to process camera frame");
+            }
+        } catch (Exception e) {
+            promise.reject("PROCESS_ERROR", e.getMessage());
+        }
+    }
+    
+    @ReactMethod
+    public void processMultiFaceFrame(String frameDataBase64, int width, int height, Promise promise) {
+        try {
+            byte[] frameData = android.util.Base64.decode(frameDataBase64, android.util.Base64.DEFAULT);
+            String result = nativeProcessMultiFace(frameData, width, height);
+            
+            if (result != null) {
+                promise.resolve(result);
+            } else {
+                promise.reject("MULTIFACE_ERROR", "Failed to process multi-face frame");
+            }
+        } catch (Exception e) {
+            promise.reject("MULTIFACE_ERROR", e.getMessage());
+        }
+    }
+    
+    @ReactMethod
+    public void startRPPGExtraction(Promise promise) {
+        try {
+            boolean success = nativeStartRPPGSession();
+            promise.resolve(success);
+        } catch (Exception e) {
+            promise.reject("RPPG_ERROR", e.getMessage());
+        }
+    }
+    
+    @ReactMethod
+    public void stopRPPGExtraction(Promise promise) {
+        try {
+            String result = nativeStopRPPGSession();
+            
+            if (result != null) {
+                promise.resolve(result);
+            } else {
+                promise.reject("RPPG_ERROR", "Failed to stop rPPG session");
+            }
+        } catch (Exception e) {
+            promise.reject("RPPG_ERROR", e.getMessage());
+        }
+    }
+    
+    @ReactMethod
+    public void releaseCamera() {
+        try {
+            nativeReleaseCamera();
+        } catch (Exception e) {
+            // Silent fail on cleanup
+        }
     }
 }

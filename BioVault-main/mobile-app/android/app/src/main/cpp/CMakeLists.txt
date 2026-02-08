@@ -22,6 +22,7 @@ set(CORE_SOURCES
 # JNI bridge source
 set(JNI_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/native-lib.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/camera_bridge.cpp
 )
 
 # ============================================================================

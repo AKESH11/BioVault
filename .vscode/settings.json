@@ -1,3 +1,5 @@
 {
-    "cmake.sourceDirectory": "D:/PROJECTS/BioVault/BioVault-main/mobile-app/cpp"
+    "cmake.sourceDirectory": "D:/PROJECTS/BioVault/BioVault-main/mobile-app/cpp",
+    "java.configuration.updateBuildConfiguration": "interactive",
+    "java.compile.nullAnalysis.mode": "automatic"
 }

@@ -4,7 +4,8 @@ require("hardhat-gas-reporter");
 require("solidity-coverage");
 require("dotenv").config();
 
-const POLYGON_RPC_URL = process.env.POLYGON_RPC_URL || "https://polygon-mumbai.g.alchemy.com/v2/YOUR_API_KEY";
+const AMOY_RPC_URL = process.env.AMOY_RPC_URL || "https://rpc-amoy.polygon.technology";
+const POLYGON_RPC_URL = process.env.POLYGON_RPC_URL || "https://polygon-rpc.com";
 const PRIVATE_KEY = process.env.PRIVATE_KEY || "0x0000000000000000000000000000000000000000000000000000000000000000";
 const POLYGONSCAN_API_KEY = process.env.POLYGONSCAN_API_KEY || "";
 
@@ -30,14 +31,14 @@ module.exports = {
       url: "http://127.0.0.1:8545",
       chainId: 31337,
     },
-    mumbai: {
-      url: POLYGON_RPC_URL,
+    amoy: {
+      url: AMOY_RPC_URL,
       accounts: [PRIVATE_KEY],
-      chainId: 80001,
+      chainId: 80002,
       gasPrice: 35000000000, // 35 Gwei
     },
     polygon: {
-      url: process.env.POLYGON_MAINNET_RPC_URL || "https://polygon-rpc.com",
+      url: POLYGON_RPC_URL,
       accounts: [PRIVATE_KEY],
       chainId: 137,
       gasPrice: 100000000000, // 100 Gwei
@@ -46,7 +47,7 @@ module.exports = {
   
   etherscan: {
     apiKey: {
-      polygonMumbai: POLYGONSCAN_API_KEY,
+      polygonAmoy: POLYGONSCAN_API_KEY,
       polygon: POLYGONSCAN_API_KEY,
     },
   },
