@@ -4,10 +4,14 @@ import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.Promise;
+import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.bridge.Arguments;
+import com.facebook.react.module.annotations.ReactModule;
 
 /**
  * React Native module bridge to C++ Bio-Vault core
  */
+@ReactModule(name = "BioVaultModule")
 public class BioVaultModule extends ReactContextBaseJavaModule {
     
     static {
@@ -289,11 +293,57 @@ public class BioVaultModule extends ReactContextBaseJavaModule {
             if (result != null) {
                 promise.resolve(result);
             } else {
-                promise.reject("MULTIFACE_ERROR", "Failed to process multi-face frame");
+                promise.reject("PROCESS_ERROR", "Failed to process multi-face frame");
             }
         } catch (Exception e) {
-            promise.reject("MULTIFACE_ERROR", e.getMessage());
+            promise.reject("PROCESS_ERROR", e.getMessage());
         }
+    }
+    
+    // Synchronous method for direct calls from camera view
+    public WritableMap processVideoFrameSync(byte[] frameData, int width, int height, int rotation) {
+        android.util.Log.d("BioVault", "processVideoFrameSync called: " + width + "x" + height + ", data=" + frameData.length + " bytes");
+        try {
+            String result = nativeProcessCameraFrame(frameData, width, height, rotation);
+            android.util.Log.d("BioVault", "Native result: " + (result != null ? result : "NULL"));
+            
+            if (result != null) {
+                // Parse JSON result and convert to WritableMap
+                org.json.JSONObject json = new org.json.JSONObject(result);
+                WritableMap map = Arguments.createMap();
+                
+                // Extract face detection
+                if (json.has("facesDetected")) {
+                    map.putInt("facesDetected", json.getInt("facesDetected"));
+                }
+                
+                // Extract rPPG data from nested bioSignatures.rppg
+                if (json.has("bioSignatures")) {
+                    org.json.JSONObject bioSigs = json.getJSONObject("bioSignatures");
+                    if (bioSigs.has("rppg")) {
+                        org.json.JSONObject rppg = bioSigs.getJSONObject("rppg");
+                        if (rppg.has("bpm")) {
+                            int bpm = rppg.getInt("bpm");
+                            map.putInt("bpm", bpm);
+                        }
+                        if (rppg.has("confidence")) {
+                            double confidence = rppg.getDouble("confidence");
+                            map.putDouble("confidence", confidence);
+                        }
+                    }
+                }
+                
+                map.putInt("width", width);
+                map.putInt("height", height);
+                
+                android.util.Log.d("BioVault", "Parsed result: faces=" + map.getInt("facesDetected") + ", bpm=" + (map.hasKey("bpm") ? map.getInt("bpm") : 0));
+                return map;
+            }
+        } catch (Exception e) {
+            android.util.Log.e("BioVault", "Error in processVideoFrameSync: " + e.getMessage(), e);
+        }
+        android.util.Log.w("BioVault", "processVideoFrameSync returning NULL");
+        return null;
     }
     
     @ReactMethod
@@ -318,6 +368,16 @@ public class BioVaultModule extends ReactContextBaseJavaModule {
             }
         } catch (Exception e) {
             promise.reject("RPPG_ERROR", e.getMessage());
+        }
+    }
+    
+    @ReactMethod
+    public void initializeCamera(String cascadePath, Promise promise) {
+        try {
+            boolean success = nativeInitializeCamera(cascadePath);
+            promise.resolve(success);
+        } catch (Exception e) {
+            promise.reject("CAMERA_INIT_ERROR", e.getMessage());
         }
     }
     

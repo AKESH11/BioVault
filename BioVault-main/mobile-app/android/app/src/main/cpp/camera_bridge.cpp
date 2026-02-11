@@ -37,8 +37,9 @@ Java_com_biovault_BioVaultModule_nativeInitializeCamera(
         const char* path = env->GetStringUTFChars(cascadePath, nullptr);
         LOGD("Initializing camera with cascade: %s", path);
         
-        // Create extractor instance
-        g_extractor = std::make_unique<BioVaultExtractor>();
+        // Create extractor instance with 15-second window and 10 FPS hint
+        // This ensures we have enough samples at lower frame rates
+        g_extractor = std::make_unique<BioVaultExtractor>(15.0, 10.0);
         
         // In a production app, we'd load the cascade classifier here
         // For now, we'll use OpenCV's built-in haarcascade
@@ -99,21 +100,32 @@ Java_com_biovault_BioVaultModule_nativeProcessCameraFrame(
         // Process frame through BioVault extractor
         auto start = std::chrono::high_resolution_clock::now();
         
-        // Extract bio-signatures
-        std::vector<uint8_t> videoHash(32);
-        std::vector<uint8_t> prnuPattern(32);
+        LOGD("About to call processFrame...");
         
-        // Mock implementation for now - replace with actual BioVaultExtractor call
-        // In production: g_extractor->processFrame(frame, videoHash, prnuPattern);
+        // Extract bio-signatures using OpenCV face detection + rPPG
+        BioVaultExtractor::Result result = g_extractor->processFrame(frame);
         
-        // For demo, generate simple frame statistics
-        cv::Scalar mean = cv::mean(frame);
-        double brightness = (mean[0] + mean[1] + mean[2]) / 3.0;
+        LOGD("processFrame returned - faceId=%d, bpm=%s, confidence=%.2f", 
+             result.faceId,
+             result.bpm.has_value() ? std::to_string(static_cast<int>(result.bpm.value())).c_str() : "none",
+             result.confidence);
         
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
         
-        // Create JSON result
+        // Calculate frame statistics
+        cv::Scalar mean = cv::mean(frame);
+        double brightness = (mean[0] + mean[1] + mean[2]) / 3.0;
+        
+        // Extract results
+        int facesDetected = result.faceId >= 0 ? 1 : 0;
+        int bpm = result.bpm.has_value() ? static_cast<int>(result.bpm.value()) : 0;
+        double confidence = result.confidence;
+        
+        LOGD("Frame processed: %dx%d, faces=%d, bpm=%d, confidence=%.2f", 
+             width, height, facesDetected, bpm, confidence);
+        
+        // Create JSON result with face bounding box
         std::ostringstream json;
         json << "{"
              << "\"success\":true,"
@@ -121,9 +133,20 @@ Java_com_biovault_BioVaultModule_nativeProcessCameraFrame(
              << "\"frameSize\":{\"width\":" << width << ",\"height\":" << height << "},"
              << "\"processingTime\":" << duration.count() << ","
              << "\"brightness\":" << brightness << ","
-             << "\"facesDetected\":0,"
-             << "\"bioSignatures\":{"
-             << "\"rppg\":{\"bpm\":0,\"confidence\":0.0},"
+             << "\"facesDetected\":" << facesDetected << ",";
+        
+        // Add face box coordinates if face detected
+        if (facesDetected > 0 && !result.faceBox.empty()) {
+            json << "\"faceBox\":{"
+                 << "\"x\":" << result.faceBox.x << ","
+                 << "\"y\":" << result.faceBox.y << ","
+                 << "\"width\":" << result.faceBox.width << ","
+                 << "\"height\":" << result.faceBox.height
+                 << "},";
+        }
+        
+        json << "\"bioSignatures\":{"
+             << "\"rppg\":{\"bpm\":" << bpm << ",\"confidence\":" << confidence << "},"
              << "\"prnu\":{\"extracted\":false,\"size\":0}"
              << "}"
              << "}";

@@ -24,7 +24,8 @@ public class MainApplication extends Application implements ReactApplication {
         @Override
         protected List<ReactPackage> getPackages() {
           List<ReactPackage> packages = new PackageList(this).getPackages();
-          // Add custom packages here if needed
+          // Add BioVault custom package for native modules and views
+          packages.add(new BioVaultPackage());
           return packages;
         }
 

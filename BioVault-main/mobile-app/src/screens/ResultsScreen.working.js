@@ -7,14 +7,22 @@ export default function ResultsScreen({navigation, route}) {
 
   const data = route?.params || {};
   const {
+    bpm = 72,
+    confidence = 85,
+    duration = 30,
+    facesDetected = 1,
+    framesProcessed = 0,
+    statistics = {},
     videoHash = 'QmX...placeholder',
     bioSignature = '0x...',
     hardwareDNA = 'HW...',
-    averageBPM = 72,
-    confidence = 85,
-    faceCount = 1,
-    duration = 30,
   } = data;
+
+  // Use the real parameters or fallback to defaults
+  const averageBPM = bpm || data.averageBPM || 72;
+  const confidenceScore = confidence || 85;
+  const recordingDuration = duration || 30;
+  const faceCount = facesDetected || data.faceCount || 1;
 
   const anchorToBlockchain = () => {
     setIsAnchoring(true);
@@ -74,19 +82,33 @@ export default function ResultsScreen({navigation, route}) {
           <View style={styles.metricRow}>
             <Text style={styles.metricLabel}>Confidence Score</Text>
             <Text style={[styles.metricValue, styles.successText]}>
-              {confidence}%
+              {confidenceScore}%
             </Text>
           </View>
 
           <View style={styles.metricRow}>
             <Text style={styles.metricLabel}>Recording Duration</Text>
-            <Text style={styles.metricValue}>{duration}s</Text>
+            <Text style={styles.metricValue}>{recordingDuration}s</Text>
           </View>
 
           <View style={styles.metricRow}>
             <Text style={styles.metricLabel}>Faces Detected</Text>
             <Text style={styles.metricValue}>{faceCount}</Text>
           </View>
+          
+          {framesProcessed > 0 && (
+            <View style={styles.metricRow}>
+              <Text style={styles.metricLabel}>Frames Processed</Text>
+              <Text style={styles.metricValue}>{framesProcessed}</Text>
+            </View>
+          )}
+          
+          {statistics && statistics.stdDev && (
+            <View style={styles.metricRow}>
+              <Text style={styles.metricLabel}>Variability (σ)</Text>
+              <Text style={styles.metricValue}>{statistics.stdDev}</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.card}>

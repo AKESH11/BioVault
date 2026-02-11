@@ -19,25 +19,25 @@ android {
         // React Native Camera defines product flavors; pick one explicitly to satisfy variant selection.
         missingDimensionStrategy 'react-native-camera', 'general'
 
-        // Native build disabled until OpenCV SDK is downloaded
-        // externalNativeBuild {
-        //     cmake {
-        //         cppFlags "-std=c++17 -frtti -fexceptions"
-        //         arguments "-DANDROID_STL=c++_shared"
-        //     }
-        // }
+        // Native build with OpenCV SDK
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++17 -frtti -fexceptions"
+                arguments "-DANDROID_STL=c++_shared"
+            }
+        }
 
         ndk {
             abiFilters "arm64-v8a", "x86_64"
         }
     }
 
-    // Native build disabled until OpenCV SDK is downloaded
-    // externalNativeBuild {
-    //     cmake {
-    //         path "src/main/cpp/CMakeLists.txt"
-    //     }
-    // }
+    // Native build with CMake
+    externalNativeBuild {
+        cmake {
+            path "src/main/cpp/CMakeLists.txt"
+        }
+    }
 
     buildFeatures {
         buildConfig = true

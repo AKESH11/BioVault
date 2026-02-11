@@ -82,6 +82,9 @@ public:
     // windowSeconds: sliding window length used for FFT (e.g., 10s)
     // fpsHint: expected FPS for buffer sizing (used as a heuristic)
     explicit BioVaultExtractor(double windowSeconds = 10.0, double fpsHint = 30.0);
+    
+    // Get smoothed BPM with outlier rejection
+    double getSmoothedBPM() const;
 
 #ifdef HAVE_OPENCV
     // Single-face helper (uses Haar cascade). Prefer processFrameMulti with Face Mesh IDs.
@@ -128,6 +131,10 @@ private:
 
     // (timestamp_sec, green_mean) for legacy single-face flow
     std::deque<std::pair<double, double>> samples_;
+    
+    // BPM smoothing for stability
+    std::deque<double> recentBPMs_;
+    double lastValidBPM_{0.0};
 
     std::optional<cv::Rect> detectFace(const cv::Mat& gray);
     cv::Rect foreheadRegion(const cv::Rect& face) const;

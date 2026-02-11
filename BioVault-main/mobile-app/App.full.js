@@ -1,7 +1,7 @@
 import React, {useState} from 'react';
 import {View, StyleSheet} from 'react-native';
 import HomeScreen from './src/screens/HomeScreen.working';
-import CameraScreen from './src/screens/CameraScreen.working';
+import CameraScreen from './src/screens/CameraScreen.native';
 import ResultsScreen from './src/screens/ResultsScreen.working';
 
 export default function App() {
