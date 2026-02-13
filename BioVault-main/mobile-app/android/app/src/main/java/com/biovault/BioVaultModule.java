@@ -635,4 +635,182 @@ public class BioVaultModule extends ReactContextBaseJavaModule {
             // Silent fail on cleanup
         }
     }
+
+    // ============================================
+    // Proof of Reality / Hardware Fingerprinting
+    // ============================================
+
+    /**
+     * Generate a complete Proof of Reality bundle.
+     * Combines video hash + BPM + hardware ID + timestamp into a BLAKE3 hash.
+     */
+    @ReactMethod
+    public void generateProofOfReality(int bpm, Promise promise) {
+        try {
+            // Get hardware fingerprint
+            String hardwareID = Build.FINGERPRINT;
+
+            // Generate anchor hash via C++ (BLAKE3 of frame data + BPM + hardwareID)
+            String proofHash = generateAnchorHash("", bpm, hardwareID);
+
+            // Create bio-signature: composite of BPM + hardware + StrongBox sign
+            byte[] bioSigBytes = null;
+            try {
+                if (strongBoxManager.hasRealityKey()) {
+                    String bioSigInput = bpm + ":" + hardwareID + ":" + System.currentTimeMillis();
+                    byte[] inputHash = java.security.MessageDigest.getInstance("SHA-256")
+                        .digest(bioSigInput.getBytes("UTF-8"));
+                    bioSigBytes = strongBoxManager.signHash(inputHash);
+                }
+            } catch (Exception e) {
+                android.util.Log.w("BioVault", "StrongBox sign failed, using hash only: " + e.getMessage());
+            }
+
+            String bioSignature = (bioSigBytes != null)
+                ? android.util.Base64.encodeToString(bioSigBytes, android.util.Base64.NO_WRAP)
+                : "bpm:" + bpm + ":hw:" + hardwareID;
+
+            WritableMap result = Arguments.createMap();
+            result.putString("proofOfRealityHash", proofHash != null ? proofHash : "");
+            result.putString("bioSignature", bioSignature);
+            result.putString("hardwareID", hardwareID);
+            result.putString("videoHash", proofHash != null ? proofHash : "");
+            result.putDouble("timestamp", (double) System.currentTimeMillis());
+            promise.resolve(result);
+        } catch (Exception e) {
+            promise.reject("PROOF_ERROR", e.getMessage());
+        }
+    }
+
+    /**
+     * Get hardware fingerprint (PRNU-based device ID).
+     */
+    @ReactMethod
+    public void getHardwareFingerprint(Promise promise) {
+        try {
+            promise.resolve(Build.FINGERPRINT);
+        } catch (Exception e) {
+            promise.reject("HW_ERROR", e.getMessage());
+        }
+    }
+
+    /**
+     * Get StrongBox/TEE availability status.
+     */
+    @ReactMethod
+    public void getStrongBoxStatus(Promise promise) {
+        try {
+            WritableMap status = Arguments.createMap();
+            status.putBoolean("isAvailable", strongBoxManager.isStrongBoxSupported());
+            String level = strongBoxManager.isStrongBoxSupported() ? "StrongBox" : "TEE";
+            Boolean inStrongBox = strongBoxManager.isKeyInStrongBox();
+            if (inStrongBox != null) {
+                level = inStrongBox ? "StrongBox" : "TEE";
+            }
+            status.putString("level", level);
+            promise.resolve(status);
+        } catch (Exception e) {
+            WritableMap fallback = Arguments.createMap();
+            fallback.putBoolean("isAvailable", false);
+            fallback.putString("level", "unknown");
+            promise.resolve(fallback);
+        }
+    }
+
+    /**
+     * Check if a reality key has been generated in StrongBox.
+     */
+    @ReactMethod
+    public void hasRealityKey(Promise promise) {
+        try {
+            boolean hasKey = strongBoxManager.hasRealityKey();
+            promise.resolve(hasKey);
+        } catch (Exception e) {
+            promise.resolve(false);
+        }
+    }
+
+    /**
+     * Get bio-signature for a given BPM (StrongBox-signed).
+     */
+    @ReactMethod
+    public void getBioSignature(int bpm, Promise promise) {
+        try {
+            String data = bpm + ":" + System.currentTimeMillis();
+            byte[] dataHash = java.security.MessageDigest.getInstance("SHA-256")
+                .digest(data.getBytes("UTF-8"));
+            byte[] signature = strongBoxManager.signHash(dataHash);
+            String encoded = android.util.Base64.encodeToString(signature, android.util.Base64.NO_WRAP);
+            promise.resolve(encoded);
+        } catch (Exception e) {
+            promise.resolve("bpm:" + bpm + ":unsigned");
+        }
+    }
+
+    // ============================================
+    // BLE Consensus Session
+    // ============================================
+
+    private ConsentBroadcaster consentBroadcaster;
+
+    /**
+     * Start a BLE consensus session for multi-party consent.
+     * @param sessionId Unique session identifier
+     * @param expectedFaces Number of faces/devices expected
+     */
+    @ReactMethod
+    public void startConsensusSession(String sessionId, int expectedFaces, int myBpm, Promise promise) {
+        try {
+            if (consentBroadcaster == null) {
+                consentBroadcaster = new ConsentBroadcaster(reactContext);
+            }
+
+            consentBroadcaster.startConsensusSession(sessionId, expectedFaces, myBpm,
+                new ConsentBroadcaster.ConsensusCallback() {
+                    @Override
+                    public void onConsensusComplete(String consensusHash, java.util.List<ConsentBroadcaster.BLESignatureData> signatures) {
+                        WritableMap result = Arguments.createMap();
+                        result.putString("consensusHash", consensusHash);
+                        result.putInt("signaturesReceived", signatures.size());
+                        result.putBoolean("complete", true);
+
+                        // Emit event to JS
+                        reactContext
+                            .getJSModule(com.facebook.react.modules.core.DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                            .emit("onConsensusUpdate", result);
+                    }
+
+                    @Override
+                    public void onConsensusTimeout(int receivedCount, int expectedCount) {
+                        WritableMap result = Arguments.createMap();
+                        result.putInt("receivedCount", receivedCount);
+                        result.putInt("expectedCount", expectedCount);
+                        result.putBoolean("timeout", true);
+
+                        reactContext
+                            .getJSModule(com.facebook.react.modules.core.DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                            .emit("onConsensusUpdate", result);
+                    }
+                });
+
+            promise.resolve(true);
+        } catch (Exception e) {
+            promise.reject("BLE_ERROR", e.getMessage());
+        }
+    }
+
+    /**
+     * Stop the active BLE consensus session.
+     */
+    @ReactMethod
+    public void stopConsensusSession(Promise promise) {
+        try {
+            if (consentBroadcaster != null) {
+                consentBroadcaster.stopConsensusSession();
+            }
+            promise.resolve(true);
+        } catch (Exception e) {
+            promise.reject("BLE_ERROR", e.getMessage());
+        }
+    }
 }

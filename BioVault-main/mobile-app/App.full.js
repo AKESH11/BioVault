@@ -3,6 +3,8 @@ import {View, StyleSheet} from 'react-native';
 import HomeScreen from './src/screens/HomeScreen.working';
 import CameraScreen from './src/screens/CameraScreen.native';
 import ResultsScreen from './src/screens/ResultsScreen.working';
+import MediaLibraryScreen from './src/screens/MediaLibraryScreen';
+import VerifyScreen from './src/screens/VerifyScreen';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState('Home');
@@ -25,6 +27,10 @@ export default function App() {
         return <CameraScreen navigation={navigation} />;
       case 'Results':
         return <ResultsScreen navigation={navigation} route={{params: screenParams}} />;
+      case 'MediaLibrary':
+        return <MediaLibraryScreen navigation={navigation} />;
+      case 'Verify':
+        return <VerifyScreen navigation={navigation} />;
       default:
         return <HomeScreen navigation={navigation} />;
     }
