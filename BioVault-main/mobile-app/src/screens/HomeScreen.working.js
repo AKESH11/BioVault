@@ -1,16 +1,55 @@
 import React, {useState, useEffect} from 'react';
-import {View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert} from 'react-native';
+import {View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, NativeModules} from 'react-native';
+import apiService from '../services/ApiService';
+
+const {BioVaultModule} = NativeModules;
 
 export default function HomeScreen({navigation}) {
   const [isInitialized, setIsInitialized] = useState(false);
   const [hardwareSecurity, setHardwareSecurity] = useState('Checking...');
+  const [realityKey, setRealityKey] = useState('Checking...');
+  const [backendStatus, setBackendStatus] = useState('Checking...');
+  const [calibrationStatus, setCalibrationStatus] = useState(null);
 
   useEffect(() => {
-    setTimeout(() => {
-      setIsInitialized(true);
-      setHardwareSecurity('✓ TEE Enabled');
-    }, 2000);
+    checkSystemStatus();
   }, []);
+
+  const checkSystemStatus = async () => {
+    // Check hardware security (StrongBox/TEE) via native module
+    try {
+      if (BioVaultModule && BioVaultModule.getStrongBoxStatus) {
+        const status = await BioVaultModule.getStrongBoxStatus();
+        setHardwareSecurity(status?.isAvailable ? `TEE: ${status.level || 'Enabled'}` : 'Software only');
+      } else {
+        setHardwareSecurity('TEE Available');
+      }
+    } catch (e) {
+      setHardwareSecurity('Check failed');
+    }
+
+    // Check reality key existence
+    try {
+      if (BioVaultModule && BioVaultModule.hasRealityKey) {
+        const hasKey = await BioVaultModule.hasRealityKey();
+        setRealityKey(hasKey ? 'Generated' : 'Not generated');
+      } else {
+        setRealityKey('Available');
+      }
+    } catch (e) {
+      setRealityKey('Check failed');
+    }
+
+    // Check backend connectivity
+    try {
+      const health = await apiService.healthCheck();
+      setBackendStatus(health.status === 'healthy' ? 'Connected' : 'Degraded');
+    } catch (e) {
+      setBackendStatus('Offline');
+    }
+
+    setIsInitialized(true);
+  };
 
   const openCamera = () => {
     if (!isInitialized) {
@@ -20,16 +59,37 @@ export default function HomeScreen({navigation}) {
     navigation.navigate('Camera');
   };
 
-  const calibrateDevice = () => {
-    Alert.alert(
-      'Hardware Calibration',
-      'Device hardware fingerprint extraction:\n\n' +
-      '• PRNU sensor noise pattern\n' +
-      '• Hardware security level\n' +
-      '• StrongBox/TEE status\n\n' +
-      'Hardware ID: HW' + Math.random().toString(36).substr(2, 16),
-      [{text: 'OK'}]
-    );
+  const calibrateDevice = async () => {
+    try {
+      setCalibrationStatus('calibrating');
+      if (BioVaultModule && BioVaultModule.calibratePRNU) {
+        const result = await BioVaultModule.calibratePRNU();
+        setCalibrationStatus('done');
+        Alert.alert(
+          'Calibration Complete',
+          `PRNU fingerprint extracted.\n\nHardware ID: ${result?.hardwareID || 'Generated'}\n` +
+          `Frames used: ${result?.framesUsed || 50}\n` +
+          `Quality: ${result?.quality || 'Good'}`,
+          [{text: 'OK'}]
+        );
+      } else {
+        // Fallback: get hardware fingerprint without full PRNU calibration
+        let hwId = 'N/A';
+        if (BioVaultModule && BioVaultModule.getHardwareFingerprint) {
+          hwId = await BioVaultModule.getHardwareFingerprint();
+        }
+        setCalibrationStatus('done');
+        Alert.alert(
+          'Hardware Info',
+          `Hardware fingerprint: ${hwId}\n\n` +
+          'Full PRNU calibration requires the native calibratePRNU method.',
+          [{text: 'OK'}]
+        );
+      }
+    } catch (error) {
+      setCalibrationStatus('error');
+      Alert.alert('Calibration Failed', error.message, [{text: 'OK'}]);
+    }
   };
 
   return (
@@ -55,18 +115,29 @@ export default function HomeScreen({navigation}) {
 
         <View style={styles.row}>
           <Text style={styles.label}>Hardware Security</Text>
-          <Text style={styles.valueGreen}>{hardwareSecurity}</Text>
+          <Text style={hardwareSecurity.includes('fail') || hardwareSecurity === 'Software only' ? styles.valueYellow : styles.valueGreen}>
+            {hardwareSecurity}
+          </Text>
         </View>
 
         <View style={styles.row}>
           <Text style={styles.label}>Reality Key</Text>
-          <Text style={styles.valueGreen}>✓ Generated</Text>
+          <Text style={realityKey.includes('fail') || realityKey === 'Not generated' ? styles.valueYellow : styles.valueGreen}>
+            {realityKey}
+          </Text>
         </View>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>⛓️ Blockchain</Text>
+        <Text style={styles.cardTitle}>Backend & Blockchain</Text>
         
+        <View style={styles.row}>
+          <Text style={styles.label}>Backend Server</Text>
+          <Text style={backendStatus === 'Connected' ? styles.valueGreen : backendStatus === 'Offline' ? styles.valueRed : styles.valueYellow}>
+            {backendStatus}
+          </Text>
+        </View>
+
         <View style={styles.row}>
           <Text style={styles.label}>Network</Text>
           <Text style={styles.value}>Polygon Amoy Testnet</Text>
@@ -112,12 +183,28 @@ export default function HomeScreen({navigation}) {
 
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => Alert.alert('My Media', 'Feature coming soon!')}>
+          onPress={() => navigation.navigate('MediaLibrary')}>
           <Text style={styles.actionIcon}>📚</Text>
           <View style={styles.actionContent}>
             <Text style={styles.actionTitle}>My Media</Text>
             <Text style={styles.actionSubtitle}>
               View anchored content
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.actionsCard}>
+        <Text style={styles.cardTitle}>Verification</Text>
+        
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('Verify')}>
+          <Text style={styles.actionIcon}>🔍</Text>
+          <View style={styles.actionContent}>
+            <Text style={styles.actionTitle}>Verify Media</Text>
+            <Text style={styles.actionSubtitle}>
+              Check authenticity on blockchain
             </Text>
           </View>
         </TouchableOpacity>
@@ -199,6 +286,11 @@ const styles = StyleSheet.create({
   valueYellow: {
     fontSize: 14,
     color: '#f59e0b',
+    fontWeight: '600',
+  },
+  valueRed: {
+    fontSize: 14,
+    color: '#ef4444',
     fontWeight: '600',
   },
   valueSmall: {

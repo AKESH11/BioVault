@@ -32,11 +32,27 @@ async function main() {
   console.log('   ✅ AuthenticityToken:', authenticityTokenAddress);
   console.log('');
   
+  // Deploy Verifier (generated from ZKP circuit trusted setup)
+  let verifierAddress = null;
+  try {
+    console.log('📜 Deploying Verifier (ZKP)...');
+    const Verifier = await hre.ethers.getContractFactory('Verifier');
+    const verifier = await Verifier.deploy();
+    await verifier.waitForDeployment();
+    verifierAddress = await verifier.getAddress();
+    console.log('   ✅ Verifier:', verifierAddress);
+  } catch (verifierError) {
+    console.log('   ⚠️  Verifier contract not found — skipping.');
+    console.log('   Generate with: cd zkp-circuits && snarkjs zkey export solidityverifier build/bio_match_final.zkey ../smart-contracts/contracts/Verifier.sol');
+  }
+  console.log('');
+  
   // Save deployments
   const deployments = {
     [network]: {
       MediaAnchor: mediaAnchorAddress,
       AuthenticityToken: authenticityTokenAddress,
+      Verifier: verifierAddress,
       deployer: deployer.address,
       timestamp: new Date().toISOString()
     }
@@ -58,6 +74,7 @@ async function main() {
   console.log('Network:', network);
   console.log('MediaAnchor:', mediaAnchorAddress);
   console.log('AuthenticityToken:', authenticityTokenAddress);
+  if (verifierAddress) console.log('Verifier:', verifierAddress);
   console.log('═══════════════════════════════════════════════');
   console.log('');
   console.log('💾 Saved to:', deploymentsPath);
@@ -67,6 +84,7 @@ async function main() {
     console.log('🔍 Verify on block explorer:');
     console.log('npx hardhat verify --network', network, mediaAnchorAddress);
     console.log('npx hardhat verify --network', network, authenticityTokenAddress);
+    if (verifierAddress) console.log('npx hardhat verify --network', network, verifierAddress);
     console.log('');
   }
 }

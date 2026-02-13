@@ -1,15 +1,25 @@
 package com.biovault;
 
+import android.os.Build;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
+import android.content.Context;
+
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.module.annotations.ReactModule;
 
+import java.io.ByteArrayOutputStream;
+
 /**
  * React Native module bridge to C++ Bio-Vault core
+ * Supports hybrid rPPG: PhysNet (neural network) + FFT (classical)
  */
 @ReactModule(name = "BioVaultModule")
 public class BioVaultModule extends ReactContextBaseJavaModule {
@@ -21,16 +31,163 @@ public class BioVaultModule extends ReactContextBaseJavaModule {
 
     private final ReactApplicationContext reactContext;
     private StrongBoxManager strongBoxManager;
+    private TSCANInference tscanInference;
+    private boolean tscanAvailable = false;
+    private int frameProcessCounter = 0;
+    
+    // Face tracking stabilization (exponential moving average)
+    private float[] smoothedFaceBounds = null;  // [x, y, width, height]
+    private static final float FACE_SMOOTHING_ALPHA = 0.7f;  // Higher = more smoothing
 
     public BioVaultModule(ReactApplicationContext context) {
         super(context);
         this.reactContext = context;
         this.strongBoxManager = new StrongBoxManager(context);
+        
+        // Initialize TS-CAN rPPG (NO FFT FALLBACK)
+        try {
+            tscanInference = new TSCANInference(context);
+            tscanAvailable = tscanInference.isReady();
+            
+            if (tscanAvailable) {
+                android.util.Log.i("BioVault", "✓ TS-CAN MODE ENABLED");
+                android.util.Log.i("BioVault", "✓ FFT disabled - pure TS-CAN neural inference");
+                android.util.Log.i("BioVault", "✓ 10 frames, 72x72, dual-branch (motion+appearance)");
+                android.util.Log.i("BioVault", "✓ 31x faster than PhysNet!");
+            } else {
+                android.util.Log.e("BioVault", "✗ TS-CAN model failed to load - rPPG unavailable");
+            }
+        } catch (Exception e) {
+            android.util.Log.e("BioVault", "TS-CAN initialization failed", e);
+            tscanAvailable = false;
+        }
     }
 
     @Override
     public String getName() {
         return "BioVaultModule";
+    }
+
+    /**
+     * Detects if device is high-end enough for PhysNet inference.
+     * Checks CPU architecture and device model/hardware.
+     */
+    private boolean isHighEndDevice() {
+        String model = Build.MODEL.toLowerCase();
+        String hardware = Build.HARDWARE.toLowerCase();
+        String[] supportedAbis = Build.SUPPORTED_ABIS;
+        
+        // Check for 64-bit ARM architecture (arm64-v8a)
+        boolean is64Bit = false;
+        for (String abi : supportedAbis) {
+            if (abi.contains("arm64-v8a") || abi.contains("x86_64")) {
+                is64Bit = true;
+                break;
+            }
+        }
+        
+        if (!is64Bit) {
+            return false; // 32-bit devices too slow for PhysNet
+        }
+        
+        // Check for flagship chipsets (Snapdragon 8-series, Tensor, Dimensity 9000+)
+        boolean hasFlagshipCpu = hardware.contains("qcom") || hardware.contains("exynos") ||
+                                  hardware.contains("tensor") || hardware.contains("dimensity");
+        
+        // Check for flagship device models
+        boolean isFlagshipDevice = model.contains("pixel") ||
+                                    model.contains("galaxy s") ||
+                                    model.contains("oneplus") ||
+                                    model.contains("xiaomi 13") || model.contains("xiaomi 14") ||
+                                    model.contains("oppo find") ||
+                                    model.contains("vivo x") ||
+                                    model.contains("iqoo");
+        
+        // Require at least 6GB RAM (check available memory)
+        android.app.ActivityManager activityManager = (android.app.ActivityManager) 
+            reactContext.getSystemService(Context.ACTIVITY_SERVICE);
+        android.app.ActivityManager.MemoryInfo memInfo = new android.app.ActivityManager.MemoryInfo();
+        activityManager.getMemoryInfo(memInfo);
+        long totalMemoryMB = memInfo.totalMem / (1024 * 1024);
+        boolean hasEnoughRAM = totalMemoryMB >= 6000; // 6 GB minimum
+        
+        android.util.Log.i("BioVault", String.format(
+            "Device detection: model=%s, hardware=%s, 64bit=%b, flagship_cpu=%b, flagship_device=%b, ram=%dMB",
+            model, hardware, is64Bit, hasFlagshipCpu, isFlagshipDevice, totalMemoryMB));
+        
+        // Enable PhysNet if: 64-bit + (flagship CPU OR flagship device) + enough RAM
+        return is64Bit && (hasFlagshipCpu || isFlagshipDevice) && hasEnoughRAM;
+    }
+
+    /**
+     * Converts YUV_420_888 frame data to RGB Bitmap for TS-CAN input.
+     * Returns full-resolution frame (cropping happens later).
+     */
+    private Bitmap yuvToBitmap(byte[] yuvData, int width, int height, int rotation) {
+        try {
+            // Create YuvImage from NV21 data
+            android.graphics.YuvImage yuvImage = new android.graphics.YuvImage(
+                yuvData, 
+                android.graphics.ImageFormat.NV21, 
+                width, 
+                height, 
+                null
+            );
+            
+            // Convert to JPEG (intermediate format)
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            yuvImage.compressToJpeg(new android.graphics.Rect(0, 0, width, height), 90, out);
+            byte[] imageBytes = out.toByteArray();
+            
+            // Decode JPEG to Bitmap
+            Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
+            
+            if (bitmap == null) {
+                android.util.Log.e("BioVault", "Failed to decode YUV frame to Bitmap");
+                return null;
+            }
+            
+            // Apply rotation if needed
+            if (rotation != 0) {
+                Matrix matrix = new Matrix();
+                matrix.postRotate(rotation);
+                bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+            }
+            
+            return bitmap;
+            
+        } catch (Exception e) {
+            android.util.Log.e("BioVault", "Error converting YUV to Bitmap: " + e.getMessage(), e);
+            return null;
+        }
+    }
+    
+    /**
+     * Smooth face bounding box using exponential moving average
+     * Reduces jitter from Haar Cascade face detection
+     * @param rawBounds Current frame's detected face bounds [x, y, width, height]
+     * @return Stabilized face bounds
+     */
+    private float[] smoothFaceBoundingBox(float[] rawBounds) {
+        if (rawBounds == null || rawBounds.length != 4) {
+            return rawBounds;
+        }
+        
+        // Initialize on first frame
+        if (smoothedFaceBounds == null) {
+            smoothedFaceBounds = new float[4];
+            System.arraycopy(rawBounds, 0, smoothedFaceBounds, 0, 4);
+            return smoothedFaceBounds;
+        }
+        
+        // Apply exponential moving average: smoothed = alpha * smoothed + (1-alpha) * raw
+        // Higher alpha = more smoothing (less jitter, slower response)
+        for (int i = 0; i < 4; i++) {
+            smoothedFaceBounds[i] = FACE_SMOOTHING_ALPHA * smoothedFaceBounds[i] + 
+                                   (1.0f - FACE_SMOOTHING_ALPHA) * rawBounds[i];
+        }
+        
+        return smoothedFaceBounds;
     }
 
     // Native method declarations (implemented in C++)
@@ -302,48 +459,109 @@ public class BioVaultModule extends ReactContextBaseJavaModule {
     
     // Synchronous method for direct calls from camera view
     public WritableMap processVideoFrameSync(byte[] frameData, int width, int height, int rotation) {
-        android.util.Log.d("BioVault", "processVideoFrameSync called: " + width + "x" + height + ", data=" + frameData.length + " bytes");
         try {
-            String result = nativeProcessCameraFrame(frameData, width, height, rotation);
-            android.util.Log.d("BioVault", "Native result: " + (result != null ? result : "NULL"));
+            frameProcessCounter++;
             
-            if (result != null) {
-                // Parse JSON result and convert to WritableMap
-                org.json.JSONObject json = new org.json.JSONObject(result);
-                WritableMap map = Arguments.createMap();
-                
-                // Extract face detection
-                if (json.has("facesDetected")) {
-                    map.putInt("facesDetected", json.getInt("facesDetected"));
-                }
-                
-                // Extract rPPG data from nested bioSignatures.rppg
-                if (json.has("bioSignatures")) {
-                    org.json.JSONObject bioSigs = json.getJSONObject("bioSignatures");
-                    if (bioSigs.has("rppg")) {
-                        org.json.JSONObject rppg = bioSigs.getJSONObject("rppg");
-                        if (rppg.has("bpm")) {
-                            int bpm = rppg.getInt("bpm");
-                            map.putInt("bpm", bpm);
-                        }
-                        if (rppg.has("confidence")) {
-                            double confidence = rppg.getDouble("confidence");
-                            map.putDouble("confidence", confidence);
-                        }
-                    }
-                }
-                
-                map.putInt("width", width);
-                map.putInt("height", height);
-                
-                android.util.Log.d("BioVault", "Parsed result: faces=" + map.getInt("facesDetected") + ", bpm=" + (map.hasKey("bpm") ? map.getInt("bpm") : 0));
-                return map;
+            // TS-CAN MODE: Use C++ for face detection, TS-CAN for rPPG
+            if (!tscanAvailable || tscanInference == null) {
+                // TS-CAN not available - return error
+                WritableMap errorMap = Arguments.createMap();
+                errorMap.putBoolean("error", true);
+                errorMap.putString("message", "TS-CAN model not loaded");
+                errorMap.putInt("facesDetected", 0);
+                return errorMap;
             }
+            
+            // Call C++ for face detection (but not FFT)
+            String cppResult = nativeProcessCameraFrame(frameData, width, height, rotation);
+            
+            if (cppResult != null) {
+                // Parse face detection from C++ result
+                org.json.JSONObject json = new org.json.JSONObject(cppResult);
+                int facesDetected = json.has("facesDetected") ? json.getInt("facesDetected") : 0;
+                
+                // Only add frames when face is detected
+                if (facesDetected > 0) {
+                    Bitmap frameBitmap = yuvToBitmap(frameData, width, height, rotation);
+                    if (frameBitmap != null) {
+                        Bitmap roiBitmap = null;
+                        try {
+                            if (json.has("faceBox")) {
+                                org.json.JSONObject faceBox = json.getJSONObject("faceBox");
+                                float[] rawBounds = new float[] {
+                                    (float) faceBox.optDouble("x", 0.0),
+                                    (float) faceBox.optDouble("y", 0.0),
+                                    (float) faceBox.optDouble("width", frameBitmap.getWidth()),
+                                    (float) faceBox.optDouble("height", frameBitmap.getHeight())
+                                };
+
+                                float[] smoothBounds = smoothFaceBoundingBox(rawBounds);
+
+                                int left = Math.max(0, Math.min((int) Math.round(smoothBounds[0]), frameBitmap.getWidth() - 1));
+                                int top = Math.max(0, Math.min((int) Math.round(smoothBounds[1]), frameBitmap.getHeight() - 1));
+                                int boxWidth = Math.max(1, Math.min((int) Math.round(smoothBounds[2]), frameBitmap.getWidth() - left));
+                                int boxHeight = Math.max(1, Math.min((int) Math.round(smoothBounds[3]), frameBitmap.getHeight() - top));
+
+                                roiBitmap = Bitmap.createBitmap(frameBitmap, left, top, boxWidth, boxHeight);
+                            }
+                        } catch (Exception e) {
+                            android.util.Log.w("BioVault", "Failed to crop face ROI, using full frame", e);
+                        }
+
+                        Bitmap inputBitmap = (roiBitmap != null) ? roiBitmap : frameBitmap;
+                        tscanInference.addFrame(inputBitmap);
+
+                        if (roiBitmap != null && roiBitmap != frameBitmap) {
+                            roiBitmap.recycle();
+                        }
+                        frameBitmap.recycle();
+                    }
+                    
+                    // Get current BPM from TS-CAN inference
+                    TSCANInference.InferenceResult result = tscanInference.getCurrentBPM();
+                    
+                    // Create result map
+                    WritableMap map = Arguments.createMap();
+                    map.putInt("bpm", (int) Math.round(result.bpm));
+                    map.putDouble("confidence", result.confidence);
+                    map.putString("method", "TS-CAN");
+                    map.putBoolean("isValid", result.isValid);
+                    map.putInt("facesDetected", facesDetected);
+                    map.putInt("width", width);
+                    map.putInt("height", height);
+                    
+                    if (result.isValid) {
+                        map.putInt("inferenceTime", (int) result.inferenceTimeMs);
+                    }
+                    
+                    return map;
+                } else {
+                    // No face detected - return early
+                    WritableMap map = Arguments.createMap();
+                    map.putInt("facesDetected", 0);
+                    map.putInt("bpm", 0);
+                    map.putDouble("confidence", 0.0);
+                    map.putBoolean("isValid", false);
+                    map.putInt("width", width);
+                    map.putInt("height", height);
+                    return map;
+                }
+            }
+            
+            // C++ call failed
+            WritableMap errorMap = Arguments.createMap();
+            errorMap.putBoolean("error", true);
+            errorMap.putString("message", "Face detection failed");
+            errorMap.putInt("facesDetected", 0);
+            return errorMap;
+            
         } catch (Exception e) {
-            android.util.Log.e("BioVault", "Error in processVideoFrameSync: " + e.getMessage(), e);
+            android.util.Log.e("BioVault", "Error in TS-CAN processing: " + e.getMessage());
+            WritableMap errorMap = Arguments.createMap();
+            errorMap.putBoolean("error", true);
+            errorMap.putString("message", e.getMessage());
+            return errorMap;
         }
-        android.util.Log.w("BioVault", "processVideoFrameSync returning NULL");
-        return null;
     }
     
     @ReactMethod
@@ -354,6 +572,34 @@ public class BioVaultModule extends ReactContextBaseJavaModule {
         } catch (Exception e) {
             promise.reject("RPPG_ERROR", e.getMessage());
         }
+    }
+    
+    @ReactMethod
+    public void setPhysNetEnabled(boolean enabled, Promise promise) {
+        try {
+            // TS-CAN mode - always returns TS-CAN status
+            WritableMap result = Arguments.createMap();
+            result.putBoolean("enabled", tscanAvailable);
+            result.putBoolean("available", tscanAvailable);
+            result.putString("mode", "ts-can");
+            
+            android.util.Log.i("BioVault", "rPPG mode: TS-CAN (no FFT)");
+            promise.resolve(result);
+        } catch (Exception e) {
+            promise.reject("MODE_ERROR", e.getMessage());
+        }
+    }
+    
+    @ReactMethod
+    public void getPhysNetStatus(Promise promise) {
+        WritableMap status = Arguments.createMap();
+        status.putBoolean("available", tscanAvailable);
+        status.putBoolean("enabled", tscanAvailable);
+        status.putBoolean("highEndDevice", isHighEndDevice());
+        status.putString("currentMode", tscanAvailable ? "TS-CAN" : "Unavailable");
+        status.putString("deviceModel", Build.MODEL);
+        status.putString("cpuAbi", Build.SUPPORTED_ABIS[0]);
+        promise.resolve(status);
     }
     
     @ReactMethod

@@ -4,36 +4,70 @@ const logger = require('../utils/logger');
 
 const router = express.Router();
 
-// Contract ABIs (simplified - import full ABIs in production)
+// ============================================================================
+// Contract ABIs — must match deployed Solidity signatures exactly
+// ============================================================================
 const MEDIA_ANCHOR_ABI = [
-    "function anchorMedia(string mediaHash, string bioSignature, string hardwareID, address[] consensusParties, string ipfsHash) external",
+    "function anchorMedia(string mediaHash, string bioSignature, string hardwareID, address[] consensusParties, string ipfsHash, string proofOfRealityHash, string proofOfRealityIPFS, bool allUniqueSignals, uint8 detectedFaces) external",
     "function verifyMedia(string mediaHash) external view returns (bool exists, bool isValid, uint256 timestamp)",
-    "function getMediaRecord(string mediaHash) external view returns (tuple(string mediaHash, string bioSignature, string hardwareID, uint256 timestamp, address creator, address[] consensusParties, bool isRevoked, string ipfsHash, uint8 status))",
+    "function getMediaRecord(string mediaHash) external view returns (tuple(string mediaHash, string bioSignature, string hardwareID, uint256 timestamp, address creator, address[] consensusParties, bool isRevoked, string ipfsHash, uint8 status, string proofOfRealityHash, string proofOfRealityIPFS, bool allUniqueSignals, uint8 detectedFaces))",
     "function disputeMedia(string mediaHash, string reason) external",
-    "function revokeMedia(string mediaHash) external"
+    "function revokeMedia(string mediaHash) external",
+    "event MediaAnchored(string indexed mediaHash, address indexed creator, uint256 timestamp, string hardwareID, bool allUniqueSignals, uint8 detectedFaces)"
 ];
 
-// Provider setup
-let provider, mediaAnchorContract;
+const AUTHENTICITY_TOKEN_ABI = [
+    "function mintToken(address to, string mediaHash, string bioSignature) external returns (uint256)",
+    "function tokenURI(uint256 tokenId) external view returns (string)",
+    "function ownerOf(uint256 tokenId) external view returns (address)",
+    "function balanceOf(address owner) external view returns (uint256)"
+];
+
+// ============================================================================
+// Provider + server-side wallet (key from .env, never from client)
+// ============================================================================
+let provider, serverWallet, mediaAnchorContract, authenticityTokenContract;
 
 function initializeWeb3() {
     try {
         provider = new ethers.JsonRpcProvider(
-            process.env.POLYGON_RPC_URL || 'http://127.0.0.1:8545'
+            process.env.POLYGON_RPC_URL || 'https://rpc-amoy.polygon.technology'
         );
-        
-        const contractAddress = process.env.MEDIA_ANCHOR_CONTRACT;
-        if (contractAddress) {
-            mediaAnchorContract = new ethers.Contract(
-                contractAddress,
-                MEDIA_ANCHOR_ABI,
-                provider
-            );
+
+        // Server-side wallet — private key stays on the server
+        const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
+        if (privateKey) {
+            serverWallet = new ethers.Wallet(privateKey, provider);
+            logger.info(`Wallet initialized: ${serverWallet.address}`);
+        } else {
+            logger.warn('DEPLOYER_PRIVATE_KEY not set — write operations will fail');
         }
-        
-        logger.info('✅ Web3 provider initialized');
+
+        // MediaAnchor contract
+        const mediaAnchorAddress = process.env.MEDIA_ANCHOR_CONTRACT;
+        if (mediaAnchorAddress) {
+            mediaAnchorContract = new ethers.Contract(
+                mediaAnchorAddress,
+                MEDIA_ANCHOR_ABI,
+                serverWallet || provider
+            );
+            logger.info(`MediaAnchor contract: ${mediaAnchorAddress}`);
+        }
+
+        // AuthenticityToken contract
+        const authTokenAddress = process.env.AUTHENTICITY_TOKEN_CONTRACT;
+        if (authTokenAddress) {
+            authenticityTokenContract = new ethers.Contract(
+                authTokenAddress,
+                AUTHENTICITY_TOKEN_ABI,
+                serverWallet || provider
+            );
+            logger.info(`AuthenticityToken contract: ${authTokenAddress}`);
+        }
+
+        logger.info('Web3 provider initialized');
     } catch (error) {
-        logger.error('❌ Web3 initialization failed:', error);
+        logger.error('Web3 initialization failed:', error);
     }
 }
 
@@ -41,43 +75,52 @@ initializeWeb3();
 
 /**
  * POST /api/web3/anchor
- * Anchor media to blockchain
+ * Anchor media to blockchain with full Proof of Reality data
+ * Body: { mediaHash, bioSignature, hardwareID, consensusParties, ipfsHash,
+ *         proofOfRealityHash, proofOfRealityIPFS, allUniqueSignals, detectedFaces }
  */
 router.post('/anchor', async (req, res) => {
     try {
-        const { mediaHash, bioSignature, hardwareID, consensusParties, ipfsHash, privateKey } = req.body;
-        
+        const {
+            mediaHash, bioSignature, hardwareID, consensusParties, ipfsHash,
+            proofOfRealityHash, proofOfRealityIPFS, allUniqueSignals, detectedFaces
+        } = req.body;
+
+        // Validate required fields
         if (!mediaHash || !bioSignature || !hardwareID || !consensusParties || !ipfsHash) {
-            return res.status(400).json({ error: 'Missing required fields' });
+            return res.status(400).json({ error: 'Missing required fields: mediaHash, bioSignature, hardwareID, consensusParties, ipfsHash' });
         }
-        
         if (!mediaAnchorContract) {
-            return res.status(503).json({ error: 'Contract not initialized' });
+            return res.status(503).json({ error: 'MediaAnchor contract not initialized. Set MEDIA_ANCHOR_CONTRACT env var.' });
         }
-        
-        // Create wallet from private key
-        const wallet = new ethers.Wallet(privateKey, provider);
-        const contract = mediaAnchorContract.connect(wallet);
-        
-        // Send transaction
-        const tx = await contract.anchorMedia(
+        if (!serverWallet) {
+            return res.status(503).json({ error: 'Server wallet not configured. Set DEPLOYER_PRIVATE_KEY env var.' });
+        }
+
+        // Send transaction using server-side wallet
+        const tx = await mediaAnchorContract.anchorMedia(
             mediaHash,
             bioSignature,
             hardwareID,
             consensusParties,
-            ipfsHash
+            ipfsHash,
+            proofOfRealityHash || '',
+            proofOfRealityIPFS || '',
+            allUniqueSignals ?? true,
+            detectedFaces ?? 1
         );
-        
-        logger.info(`📝 Anchoring media: ${mediaHash}`);
+
+        logger.info(`Anchoring media: ${mediaHash} | tx: ${tx.hash}`);
         const receipt = await tx.wait();
-        
+
         res.json({
             success: true,
             transactionHash: receipt.hash,
             blockNumber: receipt.blockNumber,
-            mediaHash
+            mediaHash,
+            gasUsed: receipt.gasUsed.toString()
         });
-        
+
     } catch (error) {
         logger.error('Anchor error:', error);
         res.status(500).json({ error: error.message });
@@ -134,7 +177,11 @@ router.get('/record/:mediaHash', async (req, res) => {
             consensusParties: record.consensusParties,
             isRevoked: record.isRevoked,
             ipfsHash: record.ipfsHash,
-            status: record.status
+            status: record.status,
+            proofOfRealityHash: record.proofOfRealityHash,
+            proofOfRealityIPFS: record.proofOfRealityIPFS,
+            allUniqueSignals: record.allUniqueSignals,
+            detectedFaces: record.detectedFaces
         });
         
     } catch (error) {
@@ -149,16 +196,16 @@ router.get('/record/:mediaHash', async (req, res) => {
  */
 router.post('/dispute', async (req, res) => {
     try {
-        const { mediaHash, reason, privateKey } = req.body;
+        const { mediaHash, reason } = req.body;
         
         if (!mediaHash || !reason) {
-            return res.status(400).json({ error: 'Missing required fields' });
+            return res.status(400).json({ error: 'Missing required fields: mediaHash, reason' });
+        }
+        if (!serverWallet) {
+            return res.status(503).json({ error: 'Server wallet not configured' });
         }
         
-        const wallet = new ethers.Wallet(privateKey, provider);
-        const contract = mediaAnchorContract.connect(wallet);
-        
-        const tx = await contract.disputeMedia(mediaHash, reason);
+        const tx = await mediaAnchorContract.disputeMedia(mediaHash, reason);
         const receipt = await tx.wait();
         
         res.json({

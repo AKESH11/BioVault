@@ -198,7 +198,37 @@ export default function CameraScreen({navigation}) {
       [
         {
           text: 'View Results',
-          onPress: () => {
+          onPress: async () => {
+            // Gather proof-of-reality data from native module
+            let videoHash = '';
+            let bioSignature = '';
+            let hardwareDNA = '';
+            let proofOfRealityHash = '';
+
+            try {
+              if (BioVaultModule) {
+                // Get bio-vault hash (BLAKE3 of frame data + BPM + hardware ID + timestamp)
+                if (BioVaultModule.generateProofOfReality) {
+                  const proofResult = await BioVaultModule.generateProofOfReality(Math.round(avgBpm));
+                  videoHash = proofResult?.videoHash || '';
+                  bioSignature = proofResult?.bioSignature || '';
+                  hardwareDNA = proofResult?.hardwareID || '';
+                  proofOfRealityHash = proofResult?.proofOfRealityHash || '';
+                } else {
+                  // Fallback: use individual methods if available
+                  if (BioVaultModule.getHardwareFingerprint) {
+                    hardwareDNA = await BioVaultModule.getHardwareFingerprint();
+                  }
+                  if (BioVaultModule.getBioSignature) {
+                    bioSignature = await BioVaultModule.getBioSignature(Math.round(avgBpm));
+                  }
+                }
+              }
+            } catch (nativeError) {
+              console.warn('Native proof-of-reality failed:', nativeError.message);
+              // Continue with whatever data we have
+            }
+
             navigation.navigate('Results', {
               bpm: Math.round(avgBpm),
               confidence: Math.round(finalConfidence),
@@ -209,7 +239,11 @@ export default function CameraScreen({navigation}) {
                 min: Math.round(minBpm),
                 max: Math.round(maxBpm),
                 stdDev: stdDev.toFixed(2),
-              }
+              },
+              videoHash,
+              bioSignature,
+              hardwareDNA,
+              proofOfRealityHash,
             });
           },
         },

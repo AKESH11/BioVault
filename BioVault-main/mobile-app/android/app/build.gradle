@@ -43,6 +43,24 @@ android {
         buildConfig = true
     }
 
+    packagingOptions {
+        // Handle duplicate libc++_shared.so from React Native and PyTorch Mobile
+        pickFirst 'lib/arm64-v8a/libc++_shared.so'
+        pickFirst 'lib/armeabi-v7a/libc++_shared.so'
+        pickFirst 'lib/x86/libc++_shared.so'
+        pickFirst 'lib/x86_64/libc++_shared.so'
+        
+        // Handle duplicate libfbjni.so
+        pickFirst 'lib/arm64-v8a/libfbjni.so'
+        pickFirst 'lib/armeabi-v7a/libfbjni.so'
+        pickFirst 'lib/x86/libfbjni.so'
+        pickFirst 'lib/x86_64/libfbjni.so'
+        
+        // Exclude duplicate META-INF files
+        exclude 'META-INF/LICENSE.md'
+        exclude 'META-INF/NOTICE.md'
+    }
+
     signingConfigs {
         debug {
             storeFile file("debug.keystore")
@@ -79,6 +97,17 @@ dependencies {
     
     implementation "androidx.appcompat:appcompat:1.6.1"
     implementation "androidx.biometric:biometric:1.2.0-alpha05"
+    
+    // PyTorch Mobile for neural network inference (using 1.13.1, latest stable)
+    implementation('org.pytorch:pytorch_android_lite:1.13.1') {
+        exclude group: 'com.facebook.fbjni'  // Use React Native's fbjni
+    }
+    implementation('org.pytorch:pytorch_android_torchvision_lite:1.13.1') {
+        exclude group: 'com.facebook.fbjni'
+    }
+    
+    // Force specific fbjni version (React Native's version)
+    implementation 'com.facebook.fbjni:fbjni:0.5.1'
 }
 
 // Apply native modules if available

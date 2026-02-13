@@ -47,6 +47,9 @@ template BioSignatureMatch() {
     
     // Both conditions must be true
     isInRange <== gte.out * lte.out;
+
+    // Enforce that the BPM IS in range — proof fails if isInRange=0
+    isInRange === 1;
 }
 
 component main {public [minBPM, maxBPM, commitmentHash]} = BioSignatureMatch();

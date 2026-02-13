@@ -25,16 +25,23 @@ module.exports = {
             name: 'Hardhat Local',
             rpc: 'http://127.0.0.1:8545'
         },
-        MUMBAI: {
-            chainId: 80001,
-            name: 'Polygon Mumbai Testnet',
-            rpc: 'https://polygon-mumbai.g.alchemy.com/v2/'
+        AMOY: {
+            chainId: 80002,
+            name: 'Polygon Amoy Testnet',
+            rpc: 'https://rpc-amoy.polygon.technology'
         },
         POLYGON: {
             chainId: 137,
             name: 'Polygon Mainnet',
             rpc: 'https://polygon-rpc.com'
         }
+    },
+
+    // Deployed contract addresses
+    CONTRACTS: {
+        MEDIA_ANCHOR: '0x7bCD78E5c8317C914Da948A24a13cE6138F77bDe',
+        AUTHENTICITY_TOKEN: null, // Deploy with: npx hardhat run scripts/deploy.js --network amoy
+        VERIFIER: null            // Generated from ZKP circuit trusted setup
     },
 
     // Media processing

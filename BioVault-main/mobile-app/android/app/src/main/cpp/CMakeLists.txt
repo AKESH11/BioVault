@@ -61,6 +61,26 @@ FetchContent_Declare(blake3
 FetchContent_MakeAvailable(blake3)
 set(HAVE_BLAKE3 ON)
 
+# ============================================================================
+# libsodium (prebuilt static library for SHA-256 + Ed25519)
+# Build with: scripts/build_libsodium_android.sh
+# ============================================================================
+set(LIBSODIUM_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../third-party/libsodium")
+
+if(EXISTS "${LIBSODIUM_DIR}/lib/${ANDROID_ABI}/libsodium.a")
+    add_library(sodium STATIC IMPORTED)
+    set_target_properties(sodium PROPERTIES
+        IMPORTED_LOCATION "${LIBSODIUM_DIR}/lib/${ANDROID_ABI}/libsodium.a"
+        INTERFACE_INCLUDE_DIRECTORIES "${LIBSODIUM_DIR}/include"
+    )
+    set(HAVE_LIBSODIUM ON)
+    message(STATUS "libsodium found for ${ANDROID_ABI}")
+else()
+    message(WARNING "libsodium not found for ${ANDROID_ABI}. SHA-256 and Ed25519 will use MOCK implementations!")
+    message(STATUS "Build libsodium with: scripts/build_libsodium_android.sh")
+    set(HAVE_LIBSODIUM OFF)
+endif()
+
 # Create shared library for Android
 add_library(${PROJECT_NAME} SHARED
     ${CORE_SOURCES}
@@ -72,6 +92,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CPP_CORE_DIR}/include
     ${OpenCV_ANDROID_INCLUDE}
     ${blake3_SOURCE_DIR}/c
+    $<$<BOOL:${HAVE_LIBSODIUM}>:${LIBSODIUM_DIR}/include>
 )
 
 # Link libraries
@@ -80,13 +101,15 @@ target_link_libraries(${PROJECT_NAME}
     log
     opencv_java4
     blake3
+    $<$<BOOL:${HAVE_LIBSODIUM}>:sodium>
 )
 
 # Compile definitions
-# Note: OpenSSL, libsodium, BLAKE3 may need to be built for Android separately
+# Note: OpenSSL not needed — libsodium provides both SHA-256 and Ed25519
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     HAVE_OPENCV
     HAVE_BLAKE3
+    $<$<BOOL:${HAVE_LIBSODIUM}>:HAVE_LIBSODIUM>
 )
 
 # If OpenCV is available for Android:

@@ -1,7 +1,7 @@
-pragma circom 2.1.8;
+pragma circom 2.1.6;
 
-include "../../node_modules/circomlib/circuits/poseidon.circom";
-include "../../node_modules/circomlib/circuits/comparators.circom";
+include "../node_modules/circomlib/circuits/poseidon.circom";
+include "../node_modules/circomlib/circuits/comparators.circom";
 
 /**
  * Bio-Vault Protocol - Media Verification Circuit
@@ -61,9 +61,8 @@ template BioVaultProtocol() {
     timestampCheck.in <== timestampSquared;
     timestampCheck.out === 0; // Assert timestamp is not zero
     
-    // Ensure isValid is binary (0 or 1)
-    // This constraint forces the output to be boolean
-    isValid * (1 - isValid) === 0;
+    // Enforce that the media IS authentic — proof fails if isValid=0
+    isValid === 1;
 }
 
 // Main component with public signal declarations
