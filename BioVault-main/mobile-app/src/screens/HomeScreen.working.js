@@ -1,8 +1,12 @@
 import React, {useState, useEffect} from 'react';
 import {View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, NativeModules} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiService from '../services/ApiService';
 
 const {BioVaultModule} = NativeModules;
+
+const STATUS_CACHE_KEY = 'biovault_status_cache';
+const STATUS_CACHE_TTL = 30000; // 30 seconds
 
 export default function HomeScreen({navigation}) {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -10,10 +14,43 @@ export default function HomeScreen({navigation}) {
   const [realityKey, setRealityKey] = useState('Checking...');
   const [backendStatus, setBackendStatus] = useState('Checking...');
   const [calibrationStatus, setCalibrationStatus] = useState(null);
+  const [contractAddress, setContractAddress] = useState(null);
+  const [contractStatus, setContractStatus] = useState('Checking...');
 
   useEffect(() => {
+    loadCachedStatus();
     checkSystemStatus();
   }, []);
+
+  const loadCachedStatus = async () => {
+    try {
+      const cached = await AsyncStorage.getItem(STATUS_CACHE_KEY);
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < STATUS_CACHE_TTL) {
+          // Use cached values while fresh check happens
+          if (data.backendStatus) setBackendStatus(data.backendStatus);
+          if (data.contractAddress) setContractAddress(data.contractAddress);
+          if (data.contractStatus) setContractStatus(data.contractStatus);
+          if (data.hardwareSecurity) setHardwareSecurity(data.hardwareSecurity);
+          if (data.realityKey) setRealityKey(data.realityKey);
+        }
+      }
+    } catch (e) {
+      // Cache miss is fine
+    }
+  };
+
+  const saveStatusCache = async (data) => {
+    try {
+      await AsyncStorage.setItem(
+        STATUS_CACHE_KEY,
+        JSON.stringify({ data, timestamp: Date.now() }),
+      );
+    } catch (e) {
+      // Non-critical
+    }
+  };
 
   const checkSystemStatus = async () => {
     // Check hardware security (StrongBox/TEE) via native module
@@ -43,12 +80,35 @@ export default function HomeScreen({navigation}) {
     // Check backend connectivity
     try {
       const health = await apiService.healthCheck();
-      setBackendStatus(health.status === 'healthy' ? 'Connected' : 'Degraded');
+      setBackendStatus(health.server === 'healthy' ? 'Connected' : 'Degraded');
     } catch (e) {
       setBackendStatus('Offline');
     }
 
+    // Get contract addresses from backend
+    try {
+      const contracts = await apiService.contractsStatus();
+      if (contracts?.mediaAnchor?.address) {
+        const addr = contracts.mediaAnchor.address;
+        setContractAddress(addr.slice(0, 6) + '...' + addr.slice(-4));
+        setContractStatus(contracts.mediaAnchor.connected ? 'Connected' : 'Not connected');
+      } else {
+        setContractStatus('Not configured');
+      }
+    } catch (e) {
+      setContractStatus('Unknown');
+    }
+
     setIsInitialized(true);
+
+    // Cache status for offline resilience
+    saveStatusCache({
+      backendStatus: backendStatus !== 'Checking...' ? backendStatus : undefined,
+      contractAddress,
+      contractStatus: contractStatus !== 'Checking...' ? contractStatus : undefined,
+      hardwareSecurity: hardwareSecurity !== 'Checking...' ? hardwareSecurity : undefined,
+      realityKey: realityKey !== 'Checking...' ? realityKey : undefined,
+    });
   };
 
   const openCamera = () => {
@@ -145,12 +205,14 @@ export default function HomeScreen({navigation}) {
 
         <View style={styles.row}>
           <Text style={styles.label}>MediaAnchor Contract</Text>
-          <Text style={styles.valueSmall}>0x7bCD...bDe</Text>
+          <Text style={styles.valueSmall}>{contractAddress || '...'}</Text>
         </View>
 
         <View style={styles.row}>
           <Text style={styles.label}>Status</Text>
-          <Text style={styles.valueGreen}>✓ Deployed</Text>
+          <Text style={contractStatus === 'Connected' ? styles.valueGreen : styles.valueYellow}>
+            {contractStatus === 'Connected' ? '✓ Deployed' : contractStatus}
+          </Text>
         </View>
       </View>
 

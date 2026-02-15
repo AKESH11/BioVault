@@ -28,14 +28,17 @@ set(JNI_SOURCES
 # ============================================================================
 # OpenCV Android SDK (4.10+) - direct path via OPENCV_ANDROID_SDK
 # ============================================================================
-# Expect OPENCV_ANDROID_SDK to point to the unpacked OpenCV-android-sdk root
-# Example: export OPENCV_ANDROID_SDK=$HOME/OpenCV-android-sdk
+# Expect OPENCV_ANDROID_SDK to point to the unpacked OpenCV-android-sdk root.
+# Auto-detect from known locations if env var is not set.
 
-if(NOT DEFINED ENV{OPENCV_ANDROID_SDK})
-    message(FATAL_ERROR "OPENCV_ANDROID_SDK env var not set. Set it to OpenCV-android-sdk (4.10+) root.")
+if(DEFINED ENV{OPENCV_ANDROID_SDK})
+    set(OpenCV_ANDROID_SDK $ENV{OPENCV_ANDROID_SDK})
+elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../../../third_party/OpenCV-android-sdk")
+    set(OpenCV_ANDROID_SDK "${CMAKE_CURRENT_SOURCE_DIR}/../../../../third_party/OpenCV-android-sdk")
+    message(STATUS "Auto-detected OpenCV SDK at: ${OpenCV_ANDROID_SDK}")
+else()
+    message(FATAL_ERROR "OpenCV SDK not found. Set OPENCV_ANDROID_SDK env var or place SDK in android/third_party/OpenCV-android-sdk")
 endif()
-
-set(OpenCV_ANDROID_SDK $ENV{OPENCV_ANDROID_SDK})
 set(OpenCV_ANDROID_INCLUDE "${OpenCV_ANDROID_SDK}/sdk/native/jni/include")
 set(OpenCV_ANDROID_LIB "${OpenCV_ANDROID_SDK}/sdk/native/libs/${ANDROID_ABI}/libopencv_java4.so")
 
@@ -63,7 +66,8 @@ set(HAVE_BLAKE3 ON)
 
 # ============================================================================
 # libsodium (prebuilt static library for SHA-256 + Ed25519)
-# Build with: scripts/build_libsodium_android.sh
+# Build with: scripts/build_libsodium_android.ps1 (Windows)
+#         or: scripts/build_libsodium_android.sh  (Linux/macOS)
 # ============================================================================
 set(LIBSODIUM_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../third-party/libsodium")
 
@@ -76,8 +80,13 @@ if(EXISTS "${LIBSODIUM_DIR}/lib/${ANDROID_ABI}/libsodium.a")
     set(HAVE_LIBSODIUM ON)
     message(STATUS "libsodium found for ${ANDROID_ABI}")
 else()
-    message(WARNING "libsodium not found for ${ANDROID_ABI}. SHA-256 and Ed25519 will use MOCK implementations!")
-    message(STATUS "Build libsodium with: scripts/build_libsodium_android.sh")
+    # In Release builds, libsodium is REQUIRED (no mock crypto allowed)
+    if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+        message(FATAL_ERROR "libsodium not found for ${ANDROID_ABI}. Build with: scripts/build_libsodium_android.ps1")
+    else()
+        message(WARNING "libsodium not found for ${ANDROID_ABI}. SHA-256 and Ed25519 will use MOCK implementations!")
+        message(STATUS "Build libsodium with: scripts/build_libsodium_android.ps1")
+    endif()
     set(HAVE_LIBSODIUM OFF)
 endif()
 

@@ -104,6 +104,22 @@ extern "C" {
 
     JNIEXPORT void JNICALL
     Java_com_biovault_BioVaultModule_reset(JNIEnv* env, jobject thiz);
+
+    JNIEXPORT jboolean JNICALL
+    Java_com_biovault_BioVaultModule_initConsensusSession(
+        JNIEnv* env, jobject thiz,
+        jstring sessionId, jintArray expectedFaceIds,
+        jbyteArray videoFrameHash, jstring hardwareDNA);
+
+    JNIEXPORT jboolean JNICALL
+    Java_com_biovault_BioVaultModule_appendConsensusSignature(
+        JNIEnv* env, jobject thiz,
+        jstring sessionId, jint faceId, jint bpm,
+        jbyteArray signature, jbyteArray publicKey);
+
+    JNIEXPORT jstring JNICALL
+    Java_com_biovault_BioVaultModule_finalizeConsensus(
+        JNIEnv* env, jobject thiz, jstring sessionId);
 }
 #endif
 

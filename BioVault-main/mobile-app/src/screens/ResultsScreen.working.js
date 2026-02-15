@@ -1,12 +1,32 @@
-import React, {useState} from 'react';
-import {View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert} from 'react-native';
+import React, {useState, useRef} from 'react';
+import {View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Share, Clipboard} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiService from '../services/ApiService';
+import RNFS from 'react-native-fs';
 
 // Utility: convert a string to base64 (for IPFS upload)
 function stringToBase64(str) {
   const { Buffer } = require('buffer');
   return Buffer.from(str, 'utf-8').toString('base64');
+}
+
+/**
+ * Retry a function up to maxRetries times with exponential backoff.
+ */
+async function withRetry(fn, maxRetries = 3, baseDelayMs = 1000) {
+  let lastError;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (attempt < maxRetries) {
+        const delay = baseDelayMs * Math.pow(2, attempt);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  throw lastError;
 }
 
 export default function ResultsScreen({navigation, route}) {
@@ -55,41 +75,83 @@ export default function ResultsScreen({navigation, route}) {
       let proofIPFSCID = '';
       let mediaIPFSCID = '';
       try {
-        const ipfsUpload = await apiService.uploadToIPFS({
-          data: proofData,
-          filename: 'proof_of_reality.json',
-          metadata: proofOfRealityJSON,
-        });
+        // Upload proof-of-reality metadata to IPFS (with retry)
+        const ipfsUpload = await withRetry(
+          () => apiService.uploadToIPFS({
+            data: proofData,
+            filename: 'proof_of_reality.json',
+            metadata: proofOfRealityJSON,
+          }),
+          2, // 2 retries (3 total attempts)
+          1500,
+        );
         proofIPFSCID = ipfsUpload.cid || '';
         mediaIPFSCID = ipfsUpload.metadataCID || proofIPFSCID;
+
+        // If we have a saved media file on disk, also upload it
+        if (mediaFilePath) {
+          try {
+            const fileExists = await RNFS.exists(mediaFilePath);
+            if (fileExists) {
+              const fileContent = await RNFS.readFile(mediaFilePath, 'utf8');
+              const fileBase64 = stringToBase64(fileContent);
+              const mediaUpload = await apiService.uploadToIPFS({
+                data: fileBase64,
+                filename: 'recording_data.json',
+                metadata: { type: 'biovault_recording', proof: proofIPFSCID },
+              });
+              if (mediaUpload.cid) {
+                mediaIPFSCID = mediaUpload.cid;
+              }
+            }
+          } catch (fileErr) {
+            console.warn('Media file IPFS upload failed:', fileErr.message);
+          }
+        }
+
         setIpfsResult(ipfsUpload);
       } catch (ipfsError) {
         console.warn('IPFS upload failed, continuing without:', ipfsError.message);
         // Continue anchoring even if IPFS is down — hash is still on-chain
       }
 
-      // Step 2: Anchor to blockchain via backend
-      const result = await apiService.anchorMedia({
-        mediaHash: videoHash || proofOfRealityHash || 'no-hash',
-        bioSignature: bioSignature || `bpm:${averageBPM}:conf:${confidenceScore}`,
-        hardwareID: hardwareDNA || 'unknown',
-        consensusParties: [], // Solo recording — no multi-party consent
-        ipfsHash: mediaIPFSCID || proofIPFSCID || '',
-        proofOfRealityHash: proofOfRealityHash || '',
-        proofOfRealityIPFS: proofIPFSCID || '',
-        allUniqueSignals: true,
-        detectedFaces: faceCount,
-      });
+      // Step 2: Compute a deterministic media hash if none was provided
+      // The hash must be unique per recording for the on-chain anchor
+      let effectiveHash = videoHash || proofOfRealityHash;
+      if (!effectiveHash) {
+        // Deterministic fallback: SHA-256 of proof-of-reality data
+        // Uses crypto-js (React Native compatible) — NOT Node.js crypto
+        const CryptoJS = require('crypto-js');
+        const hashInput = JSON.stringify(proofOfRealityJSON);
+        effectiveHash = CryptoJS.SHA256(hashInput).toString(CryptoJS.enc.Hex);
+      }
+
+      // Step 3: Anchor to blockchain via backend (with retry)
+      const result = await withRetry(
+        () => apiService.anchorMedia({
+          mediaHash: effectiveHash,
+          bioSignature: bioSignature || `bpm:${averageBPM}:conf:${confidenceScore}`,
+          hardwareID: hardwareDNA || 'unknown-device',
+          consensusParties: [], // Solo recording — no multi-party consent
+          ipfsHash: mediaIPFSCID || proofIPFSCID || '',
+          proofOfRealityHash: proofOfRealityHash || '',
+          proofOfRealityIPFS: proofIPFSCID || '',
+          allUniqueSignals: true,
+          detectedFaces: faceCount,
+        }),
+        2, // 2 retries
+        2000,
+      );
 
       setAnchorResult(result);
       setAnchorStatus('success');
 
-      // Step 3: Save to local storage for "My Media" screen
+      // Step 4: Save to local storage for "My Media" screen
       try {
         const existing = await AsyncStorage.getItem('biovault_anchored_media');
         const mediaList = existing ? JSON.parse(existing) : [];
         mediaList.unshift({
-          mediaHash: videoHash || proofOfRealityHash,
+          mediaHash: effectiveHash,
           txHash: result.transactionHash,
           blockNumber: result.blockNumber,
           ipfsCID: mediaIPFSCID || proofIPFSCID,
@@ -125,15 +187,31 @@ export default function ResultsScreen({navigation, route}) {
     }
   };
 
-  const shareResults = () => {
-    Alert.alert(
-      'Share Results',
-      `Video Hash: ${videoHash}\n\n` +
-      `Bio-Signature: ${bioSignature}\n\n` +
-      `Hardware DNA: ${hardwareDNA}\n\n` +
-      'This would generate a shareable link or QR code.',
-      [{text: 'OK'}]
-    );
+  const shareResults = async () => {
+    const shareText =
+      `BioVault Proof of Reality\n\n` +
+      `Video Hash: ${videoHash || 'N/A'}\n` +
+      `Bio-Signature: ${bioSignature || 'N/A'}\n` +
+      `Hardware DNA: ${hardwareDNA || 'N/A'}\n` +
+      `BPM: ${averageBPM} (${confidenceScore}% confidence)\n` +
+      (anchorResult
+        ? `\nBlockchain Tx: ${anchorResult.transactionHash}\nBlock: ${anchorResult.blockNumber}\n`
+        : '') +
+      (ipfsResult?.cid ? `IPFS CID: ${ipfsResult.cid}\n` : '') +
+      `\nVerify at: https://amoy.polygonscan.com/`;
+
+    try {
+      await Share.share({
+        message: shareText,
+        title: 'BioVault Proof of Reality',
+      });
+    } catch (error) {
+      // Fallback: copy to clipboard
+      if (Clipboard && Clipboard.setString) {
+        Clipboard.setString(shareText);
+        Alert.alert('Copied', 'Results copied to clipboard.');
+      }
+    }
   };
 
   return (

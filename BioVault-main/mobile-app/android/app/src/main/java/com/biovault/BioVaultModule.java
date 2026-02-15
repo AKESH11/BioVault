@@ -29,6 +29,9 @@ public class BioVaultModule extends ReactContextBaseJavaModule {
         System.loadLibrary("BioVaultCore");
     }
 
+    // Singleton reference for static JNI access from ConsentBroadcaster
+    private static BioVaultModule instance;
+
     private final ReactApplicationContext reactContext;
     private StrongBoxManager strongBoxManager;
     private TSCANInference tscanInference;
@@ -43,6 +46,7 @@ public class BioVaultModule extends ReactContextBaseJavaModule {
         super(context);
         this.reactContext = context;
         this.strongBoxManager = new StrongBoxManager(context);
+        instance = this;
         
         // Initialize TS-CAN rPPG (NO FFT FALLBACK)
         try {
@@ -203,6 +207,37 @@ public class BioVaultModule extends ReactContextBaseJavaModule {
                                                      byte[] signature, byte[] publicKey);
     private native String finalizeConsensus(String sessionId);
     private native void reset();
+
+    /**
+     * Public static bridge so ConsentBroadcaster (Kotlin) can call JNI consensus methods
+     * without holding a direct JNI reference.
+     */
+    public static String computeConsensusHashStatic(
+            String sessionId,
+            java.util.List<ConsentBroadcaster.BLESignatureData> signatures) {
+        if (instance == null) return "";
+        try {
+            // Init consensus session with empty frame hash and hardware DNA
+            instance.initConsensusSession(
+                sessionId,
+                new int[signatures.size()],
+                new byte[0],
+                android.os.Build.FINGERPRINT);
+
+            // Append each peer's signature
+            for (ConsentBroadcaster.BLESignatureData sig : signatures) {
+                instance.appendConsensusSignature(
+                    sessionId, sig.getFaceId(), sig.getBpm(),
+                    sig.getSignature(), sig.getPublicKey());
+            }
+
+            // Finalize - returns BLAKE3 consensus hash from C++
+            return instance.finalizeConsensus(sessionId);
+        } catch (Exception e) {
+            android.util.Log.e("BioVault", "computeConsensusHashStatic failed: " + e.getMessage());
+            return "";
+        }
+    }
     
     // Camera bridge native methods (implemented in camera_bridge.cpp)
     private native boolean nativeInitializeCamera(String cascadePath);

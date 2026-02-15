@@ -35,7 +35,7 @@ module.exports = {
       url: AMOY_RPC_URL,
       accounts: [PRIVATE_KEY],
       chainId: 80002,
-      gasPrice: 35000000000, // 35 Gwei
+      gasPrice: 25000000000, // 25 Gwei (low for testnet)
     },
     polygon: {
       url: POLYGON_RPC_URL,

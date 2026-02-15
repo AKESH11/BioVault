@@ -36,14 +36,20 @@ async function main() {
   let verifierAddress = null;
   try {
     console.log('📜 Deploying Verifier (ZKP)...');
-    const Verifier = await hre.ethers.getContractFactory('Verifier');
+    // snarkjs exports the contract as 'Groth16Verifier'
+    let Verifier;
+    try {
+      Verifier = await hre.ethers.getContractFactory('Groth16Verifier');
+    } catch {
+      Verifier = await hre.ethers.getContractFactory('Verifier');
+    }
     const verifier = await Verifier.deploy();
     await verifier.waitForDeployment();
     verifierAddress = await verifier.getAddress();
     console.log('   ✅ Verifier:', verifierAddress);
   } catch (verifierError) {
     console.log('   ⚠️  Verifier contract not found — skipping.');
-    console.log('   Generate with: cd zkp-circuits && snarkjs zkey export solidityverifier build/bio_match_final.zkey ../smart-contracts/contracts/Verifier.sol');
+    console.log('   Generate with: cd zkp-circuits && npm run export-verifier');
   }
   console.log('');
   

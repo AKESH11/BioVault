@@ -269,6 +269,9 @@ Java_com_biovault_BioVaultModule_reset(JNIEnv* /* env */, jobject /* thiz */) {
     }
 }
 
+// Consensus JNI methods are defined in android/app/src/main/cpp/native-lib.cpp
+// to avoid duplicate symbol errors.
+
 } // extern "C"
 
 #endif // ANDROID

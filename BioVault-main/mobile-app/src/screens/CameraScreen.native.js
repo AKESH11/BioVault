@@ -10,8 +10,12 @@ import {
   NativeModules,
 } from 'react-native';
 import {BioVaultCameraView} from '../components/BioVaultCameraView';
+import RNFS from 'react-native-fs';
 
 const {BioVaultModule} = NativeModules;
+
+// Directory for BioVault media files
+const MEDIA_DIR = RNFS.DocumentDirectoryPath + '/biovault/media';
 
 export default function CameraScreen({navigation}) {
   const [isRecording, setIsRecording] = useState(false);
@@ -133,13 +137,15 @@ export default function CameraScreen({navigation}) {
         console.error('[BioVault] Failed to start rPPG:', error);
       }
       
-      // Start simulated heart rate as fallback (only if no real values come in)
+      // Fallback: if no real rPPG data arrives within 15 seconds, warn user.
+      // We do NOT simulate BPM — the recording continues and will simply have
+      // fewer BPM samples.  The "Recording Failed" alert fires on stop if
+      // bpmReadings is still empty.
       const fallbackTimerId = setTimeout(() => {
         if (recordingDataRef.current.bpmReadings.length === 0) {
-          console.log('[BioVault] No native rPPG data, starting simulated fallback');
-          startSimulatedHeartRate();
+          console.warn('[BioVault] 15s elapsed with no native rPPG data — rPPG may not be working');
         }
-      }, 3000); // Wait 3 seconds for native data
+      }, 15000);
       
       recordingDataRef.current.fallbackTimerId = fallbackTimerId;
       
@@ -229,6 +235,40 @@ export default function CameraScreen({navigation}) {
               // Continue with whatever data we have
             }
 
+            // Save recording data to disk via RNFS
+            let mediaFilePath = '';
+            try {
+              await RNFS.mkdir(MEDIA_DIR);
+              const recordingId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+              const recordingData = {
+                id: recordingId,
+                timestamp: Date.now(),
+                bpm: Math.round(avgBpm),
+                confidence: Math.round(finalConfidence),
+                duration,
+                facesDetected,
+                framesProcessed: frames.length,
+                statistics: {
+                  min: Math.round(minBpm),
+                  max: Math.round(maxBpm),
+                  stdDev: parseFloat(stdDev.toFixed(2)),
+                  readings: bpmReadings.length,
+                },
+                proofOfReality: {
+                  videoHash,
+                  bioSignature,
+                  hardwareDNA,
+                  proofOfRealityHash,
+                },
+              };
+              mediaFilePath = MEDIA_DIR + '/' + recordingId + '.json';
+              await RNFS.writeFile(mediaFilePath, JSON.stringify(recordingData, null, 2), 'utf8');
+              console.log('[BioVault] Recording saved to:', mediaFilePath);
+            } catch (fsError) {
+              console.warn('[BioVault] Failed to save recording file:', fsError.message);
+              // Non-fatal — continue to Results without file path
+            }
+
             navigation.navigate('Results', {
               bpm: Math.round(avgBpm),
               confidence: Math.round(finalConfidence),
@@ -244,6 +284,7 @@ export default function CameraScreen({navigation}) {
               bioSignature,
               hardwareDNA,
               proofOfRealityHash,
+              mediaFilePath,
             });
           },
         },
@@ -313,36 +354,9 @@ export default function CameraScreen({navigation}) {
     });
   };
   
-  const startSimulatedHeartRate = () => {
-    // Simulate realistic heart rate readings for testing
-    const baselineBpm = 70 + Math.random() * 20; // 70-90 BPM baseline
-    
-    const intervalId = setInterval(() => {
-      if (!isRecording) {
-        clearInterval(intervalId);
-        return;
-      }
-      
-      // Add small random variation
-      const variation = (Math.random() - 0.5) * 5;
-      const simulatedBpm = Math.round(baselineBpm + variation);
-      const simulatedConfidence = 0.75 + Math.random() * 0.2; // 75-95%
-      
-      setBpm(simulatedBpm);
-      setConfidence(Math.round(simulatedConfidence * 100));
-      setFacesDetected(1);
-      
-      recordingDataRef.current.bpmReadings.push(simulatedBpm);
-      recordingDataRef.current.frames.push({
-        timestamp: Date.now(),
-        bpm: simulatedBpm,
-        confidence: simulatedConfidence,
-      });
-    }, 500); // Update every 500ms
-    
-    // Store interval ID to clear later
-    recordingDataRef.current.intervalId = intervalId;
-  };
+  // NOTE: Simulated heart rate fallback was removed for production.
+  // All BPM data must come from the real TS-CAN neural rPPG engine
+  // to maintain the "Proof of Reality" guarantee.
 
   console.log('[BioVault] Rendering CameraScreen, hasPermission:', hasPermission);
 

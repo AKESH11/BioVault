@@ -1,32 +1,44 @@
 import React, {useState} from 'react';
-import {View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView, ActivityIndicator} from 'react-native';
+import {View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView, ActivityIndicator, Clipboard} from 'react-native';
 import apiService from '../services/ApiService';
 
 export default function VerifyScreen({navigation}) {
   const [mediaHash, setMediaHash] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isZkpVerifying, setIsZkpVerifying] = useState(false);
   const [result, setResult] = useState(null);
   const [record, setRecord] = useState(null);
+  const [zkpResult, setZkpResult] = useState(null);
 
   const verify = async () => {
-    if (!mediaHash.trim()) {
+    const trimmed = mediaHash.trim();
+    if (!trimmed) {
       Alert.alert('Input Required', 'Enter or paste a media hash to verify.');
+      return;
+    }
+
+    // Basic input validation: hex hash should be 64 chars (SHA-256/BLAKE3)
+    // or 66 chars with 0x prefix
+    const cleaned = trimmed.startsWith('0x') ? trimmed.slice(2) : trimmed;
+    if (!/^[a-fA-F0-9]+$/.test(cleaned)) {
+      Alert.alert('Invalid Hash', 'The hash should be a hexadecimal string.');
       return;
     }
 
     setIsVerifying(true);
     setResult(null);
     setRecord(null);
+    setZkpResult(null);
 
     try {
       // Step 1: Quick verification check
-      const verifyResult = await apiService.verifyMedia(mediaHash.trim());
+      const verifyResult = await apiService.verifyMedia(trimmed);
       setResult(verifyResult);
 
       // Step 2: If exists, fetch full record
       if (verifyResult.exists) {
         try {
-          const fullRecord = await apiService.getMediaRecord(mediaHash.trim());
+          const fullRecord = await apiService.getMediaRecord(trimmed);
           setRecord(fullRecord);
         } catch (recordError) {
           console.warn('Could not fetch full record:', recordError.message);
@@ -36,6 +48,53 @@ export default function VerifyScreen({navigation}) {
       Alert.alert('Verification Error', error.message, [{text: 'OK'}]);
     } finally {
       setIsVerifying(false);
+    }
+  };
+
+  const verifyWithZKP = async () => {
+    if (!record || !record.bioSignature) {
+      Alert.alert('Not Available', 'No bio-signature found for ZKP verification.');
+      return;
+    }
+    setIsZkpVerifying(true);
+    setZkpResult(null);
+    try {
+      // Generate a ZK proof that the bio-signature matches without revealing it
+      const proofResult = await apiService.generateProof(
+        {
+          bioSignature: record.bioSignature,
+          mediaHash: mediaHash.trim(),
+          hardwareID: record.hardwareID || '',
+        },
+        'bio_match',
+      );
+
+      if (proofResult.proof) {
+        // Verify the generated proof
+        const verifyResult = await apiService.verifyProof(
+          proofResult.proof,
+          proofResult.publicSignals,
+          'verify',
+        );
+        setZkpResult({
+          proofGenerated: true,
+          verified: verifyResult.valid || verifyResult.verified,
+          proof: proofResult.proof,
+        });
+      } else {
+        setZkpResult({ proofGenerated: false, error: 'Proof generation failed' });
+      }
+    } catch (error) {
+      setZkpResult({ proofGenerated: false, error: error.message });
+    } finally {
+      setIsZkpVerifying(false);
+    }
+  };
+
+  const copyToClipboard = (text, label) => {
+    if (Clipboard && Clipboard.setString) {
+      Clipboard.setString(text);
+      Alert.alert('Copied', `${label} copied to clipboard.`);
     }
   };
 
@@ -190,6 +249,58 @@ export default function VerifyScreen({navigation}) {
             {record.isRevoked && (
               <View style={styles.revokedBanner}>
                 <Text style={styles.revokedText}>This media has been revoked by its creator</Text>
+              </View>
+            )}
+
+            {/* Copy hash to clipboard */}
+            <TouchableOpacity
+              style={[styles.verifyButton, {marginTop: 16, backgroundColor: '#1e1e3f'}]}
+              onPress={() => copyToClipboard(mediaHash.trim(), 'Media Hash')}>
+              <Text style={[styles.verifyButtonText, {color: '#6366f1'}]}>Copy Hash</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ZKP Verification */}
+        {record && record.bioSignature && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Zero-Knowledge Proof</Text>
+            <Text style={styles.description}>
+              Verify the bio-signature cryptographically without revealing sensitive biometric data.
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.verifyButton, isZkpVerifying && styles.verifyButtonDisabled, {backgroundColor: '#8b5cf6'}]}
+              onPress={verifyWithZKP}
+              disabled={isZkpVerifying}>
+              {isZkpVerifying ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.verifyButtonText}>Verify with ZKP</Text>
+              )}
+            </TouchableOpacity>
+
+            {zkpResult && (
+              <View style={{marginTop: 16}}>
+                <View style={styles.resultRow}>
+                  <Text style={styles.resultLabel}>Proof Generated</Text>
+                  <Text style={[styles.resultValue, {color: zkpResult.proofGenerated ? '#10b981' : '#ef4444'}]}>
+                    {zkpResult.proofGenerated ? 'Yes' : 'No'}
+                  </Text>
+                </View>
+                {zkpResult.proofGenerated && (
+                  <View style={styles.resultRow}>
+                    <Text style={styles.resultLabel}>ZKP Verified</Text>
+                    <Text style={[styles.resultValue, {color: zkpResult.verified ? '#10b981' : '#ef4444'}]}>
+                      {zkpResult.verified ? 'Valid' : 'Invalid'}
+                    </Text>
+                  </View>
+                )}
+                {zkpResult.error && (
+                  <Text style={[styles.description, {color: '#ef4444', marginTop: 8}]}>
+                    {zkpResult.error}
+                  </Text>
+                )}
               </View>
             )}
           </View>

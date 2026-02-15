@@ -31,11 +31,20 @@ cd mobile-app && npm run android
 | Component | Main File | Purpose |
 |-----------|-----------|---------|
 | **C++ Engine** | `mobile-app/cpp/src/rppg_engine.cpp` | Heart rate extraction |
+| **Crypto Utils** | `mobile-app/cpp/src/crypto_utils.cpp` | BLAKE3/SHA-256/Ed25519 |
 | **JNI Bridge** | `mobile-app/android/.../BioVaultModule.java` | C++ ↔ React Native |
-| **React Native App** | `mobile-app/App.js` | Mobile UI |
+| **StrongBox** | `mobile-app/android/.../StrongBoxManager.kt` | Hardware key management |
+| **BLE Consent** | `mobile-app/android/.../ConsentBroadcaster.kt` | P2P consent handshake |
+| **API Service** | `mobile-app/src/services/ApiService.js` | Backend HTTP client |
+| **Camera Screen** | `mobile-app/src/screens/CameraScreen.native.js` | rPPG capture UI |
+| **Results Screen** | `mobile-app/src/screens/ResultsScreen.working.js` | Anchoring + IPFS |
+| **Media Library** | `mobile-app/src/screens/MediaLibraryScreen.js` | Anchored media list |
+| **Verify Screen** | `mobile-app/src/screens/VerifyScreen.js` | On-chain verification |
 | **Smart Contract** | `smart-contracts/contracts/MediaAnchor.sol` | Blockchain anchoring |
 | **Backend API** | `backend/src/index.js` | REST server |
-| **ZK Circuit** | `zkp-circuits/circuits/verify.circom` | Zero-knowledge proofs |
+| **Web3 Routes** | `backend/src/routes/web3.js` | Blockchain RPC proxy |
+| **ZK Circuit** | `zkp-circuits/circuits/bio_match.circom` | BPM range proof |
+| **ZK Verify** | `zkp-circuits/circuits/verify.circom` | Media hash verification |
 
 ## 🔧 Common Tasks
 
@@ -58,10 +67,10 @@ cd smart-contracts
 npm test
 ```
 
-### Deploy to Polygon Mumbai
+### Deploy to Polygon Amoy
 ```powershell
 cd smart-contracts
-npm run deploy:mumbai
+npm run deploy:amoy
 ```
 
 ### Generate ZK Proof
@@ -102,11 +111,28 @@ await BioVaultModule.init();
 await BioVaultModule.processVideoFrame(frameData, width, height, faceBounds);
 await BioVaultModule.calibrateDevice(frames);
 await BioVaultModule.createAnchorHash(frameData, bpm, hardwareID);
+
+// Proof-of-Reality (StrongBox + BLAKE3)
+const proof = await BioVaultModule.generateProofOfReality(bpm);
+// → { proofOfRealityHash, bioSignature, hardwareID, videoHash, timestamp }
+
+const hwId = await BioVaultModule.getHardwareFingerprint();
+const status = await BioVaultModule.getStrongBoxStatus();
+// → { isAvailable: true, level: 'StrongBox' | 'TEE' }
+
+const hasKey = await BioVaultModule.hasRealityKey();
+const sig = await BioVaultModule.getBioSignature(bpm);
+
+// BLE Consensus (multi-party)
+await BioVaultModule.startConsensusSession(sessionId, expectedFaces, myBpm);
+await BioVaultModule.stopConsensusSession();
 ```
 
 ### Smart Contract Functions
 ```solidity
-anchorMedia(mediaHash, bioSignature, hardwareID, consensusParties, ipfsHash)
+anchorMedia(mediaHash, bioSignature, hardwareID, consensusParties,
+            ipfsHash, proofOfRealityHash, proofOfRealityIPFS,
+            allUniqueSignals, detectedFaces)
 verifyMedia(mediaHash) returns (exists, isValid, timestamp)
 disputeMedia(mediaHash, reason)
 revokeMedia(mediaHash)
@@ -138,9 +164,15 @@ revokeMedia(mediaHash)
 
 ## 🎯 Project Status
 
-✅ **Complete** - All core components built
-🔨 **In Progress** - Integration & testing
-📋 **Todo** - Production hardening, iOS support
+✅ **Complete** - C++ engine (rPPG, PRNU, BLAKE3, Ed25519)
+✅ **Complete** - Smart contracts (MediaAnchor 9-param, AuthenticityToken)
+✅ **Complete** - Backend API (server-side wallet, Kubo IPFS proxy)
+✅ **Complete** - ZKP circuits (bio_match + verify with enforced constraints)
+✅ **Complete** - Mobile screens (Camera, Results, MediaLibrary, Verify, Home)
+✅ **Complete** - JNI bridge (proof-of-reality, StrongBox, BLE consensus)
+✅ **Complete** - RNFS media persistence + IPFS upload pipeline
+🔨 **In Progress** - Libsodium cross-compilation for Android NDK
+📋 **Todo** - Production deployment, iOS support, e2e tests
 
 ## 📬 Support
 

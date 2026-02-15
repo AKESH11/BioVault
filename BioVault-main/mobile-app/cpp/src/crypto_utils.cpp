@@ -22,6 +22,15 @@
 namespace biovault {
 namespace crypto {
 
+// ============================================================================
+// Production safety: block builds that lack real crypto in Release mode
+// ============================================================================
+#ifdef NDEBUG
+  #if !defined(HAVE_LIBSODIUM) && !defined(HAVE_OPENSSL)
+    #error "Release builds MUST link libsodium or OpenSSL. Mock crypto is disabled."
+  #endif
+#endif
+
 // Initialize libsodium once
 static bool sodiumInitialized = false;
 
@@ -60,13 +69,22 @@ std::string CryptoUtils::generateBioVaultHash(
     std::string tsStr = std::to_string(timestamp);
     combined.insert(combined.end(), tsStr.begin(), tsStr.end());
     
-    // Generate BLAKE3 hash (using SHA-256 placeholder for now)
-    return sha256(combined);
+    // Prefer BLAKE3 (fast, available on Android via FetchContent), fallback to SHA-256
+    return blake3(combined);
 }
 
 std::string CryptoUtils::sha256(const std::vector<uint8_t>& data) {
-#ifdef HAVE_OPENSSL
-    // Production implementation using OpenSSL
+#ifdef HAVE_LIBSODIUM
+    // Production: libsodium (preferred — available on Android)
+    ensureSodiumInit();
+    unsigned char hash[crypto_hash_sha256_BYTES];
+    crypto_hash_sha256(hash, data.data(), data.size());
+
+    std::vector<char> hex(crypto_hash_sha256_BYTES * 2 + 1);
+    sodium_bin2hex(hex.data(), hex.size(), hash, crypto_hash_sha256_BYTES);
+    return std::string(hex.data());
+#elif defined(HAVE_OPENSSL)
+    // Fallback: OpenSSL (desktop builds)
     unsigned char hash[SHA256_DIGEST_LENGTH];
     SHA256_CTX sha256;
     SHA256_Init(&sha256);
@@ -79,14 +97,6 @@ std::string CryptoUtils::sha256(const std::vector<uint8_t>& data) {
         ss << std::setw(2) << static_cast<int>(hash[i]);
     }
     return ss.str();
-#elif defined(HAVE_LIBSODIUM)
-    unsigned char hash[crypto_hash_sha256_BYTES];
-    crypto_hash_sha256(hash, data.data(), data.size());
-
-    // Hex encoding via libsodium
-    std::vector<char> hex(crypto_hash_sha256_BYTES * 2 + 1);
-    sodium_bin2hex(hex.data(), hex.size(), hash, crypto_hash_sha256_BYTES);
-    return std::string(hex.data());
 #else
     std::cerr << "⚠️  WARNING: SHA-256 falling back to mock implementation (no OpenSSL/libsodium)" << std::endl;
     uint32_t hash = 0;

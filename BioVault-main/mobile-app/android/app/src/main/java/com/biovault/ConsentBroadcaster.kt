@@ -126,17 +126,21 @@ class ConsentBroadcaster(private val context: Context) {
     }
 
     /**
-     * Finalize the consensus and compute the hash via JNI
+     * Finalize the consensus and compute the hash via JNI (C++ BLAKE3 multi-sig)
      */
     private fun finalizeConsensus() {
         val signatures = receivedSignatures.values.toList()
         
-        // Call JNI to compute consensus hash in C++
-        // Note: This requires BioVaultModule to expose consensus JNI methods
-        // For now, return a placeholder until JNI bridge is wired
-        val consensusHash = "computed_via_jni_placeholder"
+        // Call BioVaultModule's static JNI bridge to compute consensus hash in C++
+        val consensusHash = BioVaultModule.computeConsensusHashStatic(
+            activeSessionId ?: "",
+            signatures
+        )
         
-        consensusCallback?.onConsensusComplete(consensusHash, signatures)
+        consensusCallback?.onConsensusComplete(
+            if (consensusHash.isNullOrEmpty()) "consensus_error" else consensusHash,
+            signatures
+        )
     }
 
     private var currentCallback: AdvertiseCallback? = null

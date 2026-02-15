@@ -37,8 +37,10 @@ module.exports = {
         }
     },
 
-    // Deployed contract addresses
+    // Deployed contract addresses (updated after each deployment)
+    // The canonical source is backend/.env or smart-contracts/deployments.json
     CONTRACTS: {
+        // Polygon Amoy Testnet
         MEDIA_ANCHOR: '0x7bCD78E5c8317C914Da948A24a13cE6138F77bDe',
         AUTHENTICITY_TOKEN: null, // Deploy with: npx hardhat run scripts/deploy.js --network amoy
         VERIFIER: null            // Generated from ZKP circuit trusted setup

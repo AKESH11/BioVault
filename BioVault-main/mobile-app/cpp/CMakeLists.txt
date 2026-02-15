@@ -28,19 +28,9 @@ endif()
 # Cryptography Libraries Configuration
 # ============================================================================
 
-# OpenSSL (for SHA-256)
-find_package(OpenSSL)
-if(OPENSSL_FOUND)
-    message(STATUS "OpenSSL Version: ${OPENSSL_VERSION}")
-    message(STATUS "OpenSSL Include: ${OPENSSL_INCLUDE_DIR}")
-    set(HAVE_OPENSSL ON)
-else()
-    message(WARNING "OpenSSL not found! Using mock SHA-256 (INSECURE)")
-    message(STATUS "To enable: Install OpenSSL and set OPENSSL_ROOT_DIR")
-    set(HAVE_OPENSSL OFF)
-endif()
-
-# libsodium (for Ed25519 signatures)
+# libsodium (PRIMARY — provides SHA-256 + Ed25519)
+# On Android: cross-compiled via scripts/build_libsodium_android.ps1
+# On desktop: install via package manager or set LIBSODIUM_ROOT
 find_path(LIBSODIUM_INCLUDE_DIR sodium.h)
 find_library(LIBSODIUM_LIBRARY NAMES sodium libsodium)
 if(LIBSODIUM_INCLUDE_DIR AND LIBSODIUM_LIBRARY)
@@ -49,8 +39,8 @@ if(LIBSODIUM_INCLUDE_DIR AND LIBSODIUM_LIBRARY)
     message(STATUS "libsodium Library: ${LIBSODIUM_LIBRARY}")
     set(HAVE_LIBSODIUM ON)
 else()
-    message(WARNING "libsodium not found! Using mock Ed25519 (INSECURE)")
-    message(STATUS "To enable: Install libsodium and set LIBSODIUM_ROOT_DIR")
+    message(WARNING "libsodium not found! SHA-256 and Ed25519 will use MOCK (INSECURE)")
+    message(STATUS "Install: vcpkg install libsodium / brew install libsodium / apt install libsodium-dev")
     set(HAVE_LIBSODIUM OFF)
 endif()
 
@@ -75,6 +65,8 @@ set(SOURCES
     src/rppg_engine.cpp
     src/prnu_extractor.cpp
     src/crypto_utils.cpp
+    src/consensus_handshake.cpp
+    src/proof_of_reality.cpp
     src/bio_vault_native.cpp
 )
 
@@ -82,6 +74,8 @@ set(HEADERS
     include/rppg_engine.h
     include/prnu_extractor.h
     include/crypto_utils.h
+    include/consensus_handshake.h
+    include/proof_of_reality.h
     include/bio_vault_native.h
 )
 
@@ -101,10 +95,6 @@ if(HAVE_OPENCV)
     target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_OPENCV)
 endif()
 
-if(HAVE_OPENSSL)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_OPENSSL)
-endif()
-
 if(HAVE_LIBSODIUM)
     target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_LIBSODIUM)
 endif()
@@ -119,7 +109,6 @@ target_include_directories(${PROJECT_NAME}
         $<INSTALL_INTERFACE:include>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
-        $<$<BOOL:${HAVE_OPENSSL}>:${OPENSSL_INCLUDE_DIR}>
         $<$<BOOL:${HAVE_LIBSODIUM}>:${LIBSODIUM_INCLUDE_DIR}>
         $<$<BOOL:${HAVE_BLAKE3}>:${BLAKE3_INCLUDE_DIR}>
 )
@@ -128,8 +117,6 @@ target_link_libraries(${PROJECT_NAME}
     PUBLIC
         $<$<BOOL:${HAVE_OPENCV}>:${OpenCV_LIBS}>
     PRIVATE
-        $<$<BOOL:${HAVE_OPENSSL}>:OpenSSL::SSL>
-        $<$<BOOL:${HAVE_OPENSSL}>:OpenSSL::Crypto>
         $<$<BOOL:${HAVE_LIBSODIUM}>:${LIBSODIUM_LIBRARY}>
         $<$<BOOL:${HAVE_BLAKE3}>:${BLAKE3_LIBRARY}>
 )
@@ -238,15 +225,12 @@ message(STATUS "OpenCV: ${HAVE_OPENCV}")
 if(HAVE_OPENCV)
     message(STATUS "  - Version: ${OpenCV_VERSION}")
 endif()
-message(STATUS "OpenSSL: ${HAVE_OPENSSL}")
-if(HAVE_OPENSSL)
-    message(STATUS "  - Version: ${OPENSSL_VERSION}")
-endif()
 message(STATUS "libsodium: ${HAVE_LIBSODIUM}")
 message(STATUS "BLAKE3: ${HAVE_BLAKE3}")
 message(STATUS "")
-if(NOT HAVE_OPENSSL OR NOT HAVE_LIBSODIUM)
+if(NOT HAVE_LIBSODIUM)
     message(WARNING "⚠️  SECURITY WARNING: Building with mock crypto!")
-    message(WARNING "⚠️  Install OpenSSL and libsodium for production use")
+    message(WARNING "⚠️  Install libsodium for production use")
+    message(WARNING "⚠️  vcpkg install libsodium / brew install libsodium / apt install libsodium-dev")
 endif()
 message(STATUS "==============================================")

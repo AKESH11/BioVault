@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 
 /**
  * @title MediaAnchor
@@ -14,8 +15,14 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  * - Hardware fingerprint (PRNU)
  * - Multi-party consensus signatures
  * - Timestamp of capture
+ *
+ * Security features:
+ * - ReentrancyGuard on all state-changing functions
+ * - Pausable for emergency stops
+ * - Dispute resolution with owner arbitration
+ * - String length limits to prevent gas griefing
  */
-contract MediaAnchor is Ownable, ReentrancyGuard {
+contract MediaAnchor is Ownable, ReentrancyGuard, Pausable {
     
     // Struct to represent an anchored media record
     struct MediaRecord {
@@ -113,10 +120,22 @@ contract MediaAnchor is Ownable, ReentrancyGuard {
         string memory _proofOfRealityIPFS,
         bool _allUniqueSignals,
         uint8 _detectedFaces
-    ) external nonReentrant {
+    ) external nonReentrant whenNotPaused {
         require(bytes(_mediaHash).length > 0, "Media hash cannot be empty");
+        require(bytes(_mediaHash).length <= 256, "Media hash too long");
+        require(bytes(_bioSignature).length <= 512, "Bio signature too long");
+        require(bytes(_hardwareID).length <= 256, "Hardware ID too long");
+        require(bytes(_ipfsHash).length <= 256, "IPFS hash too long");
+        require(bytes(_proofOfRealityHash).length <= 256, "Proof of reality hash too long");
+        require(bytes(_proofOfRealityIPFS).length <= 256, "Proof of reality IPFS too long");
         require(bytes(mediaRecords[_mediaHash].mediaHash).length == 0, "Media already anchored");
-        require(_consensusParties.length > 0, "At least one consensus party required");
+
+        // For solo recordings, auto-include the creator as the sole consensus party
+        address[] memory parties = _consensusParties;
+        if (parties.length == 0) {
+            parties = new address[](1);
+            parties[0] = msg.sender;
+        }
         
         MediaRecord storage record = mediaRecords[_mediaHash];
         record.mediaHash = _mediaHash;
@@ -124,7 +143,7 @@ contract MediaAnchor is Ownable, ReentrancyGuard {
         record.hardwareID = _hardwareID;
         record.timestamp = block.timestamp;
         record.creator = msg.sender;
-        record.consensusParties = _consensusParties;
+        record.consensusParties = parties;
         record.isRevoked = false;
         record.ipfsHash = _ipfsHash;
         record.status = VerificationStatus.Verified;
@@ -137,15 +156,15 @@ contract MediaAnchor is Ownable, ReentrancyGuard {
         creatorMedia[msg.sender].push(_mediaHash);
         
         // Track media for all participants
-        for (uint i = 0; i < _consensusParties.length; i++) {
-            participantMedia[_consensusParties[i]].push(_mediaHash);
+        for (uint i = 0; i < parties.length; i++) {
+            participantMedia[parties[i]].push(_mediaHash);
         }
         
         emit MediaAnchored(_mediaHash, msg.sender, block.timestamp, _hardwareID, _allUniqueSignals, _detectedFaces);
         
         // Emit consent events
-        for (uint i = 0; i < _consensusParties.length; i++) {
-            emit ConsentAdded(_mediaHash, _consensusParties[i], block.timestamp);
+        for (uint i = 0; i < parties.length; i++) {
+            emit ConsentAdded(_mediaHash, parties[i], block.timestamp);
         }
     }
     
@@ -172,9 +191,10 @@ contract MediaAnchor is Ownable, ReentrancyGuard {
      * @param _mediaHash Hash of the disputed media
      * @param _reason Reason for the dispute
      */
-    function disputeMedia(string memory _mediaHash, string memory _reason) external {
+    function disputeMedia(string memory _mediaHash, string memory _reason) external whenNotPaused {
         require(bytes(mediaRecords[_mediaHash].mediaHash).length > 0, "Media not found");
         require(!mediaRecords[_mediaHash].isRevoked, "Media already revoked");
+        require(bytes(_reason).length <= 2048, "Reason too long");
         
         disputes[_mediaHash].push(Dispute({
             disputer: msg.sender,
@@ -192,7 +212,7 @@ contract MediaAnchor is Ownable, ReentrancyGuard {
      * @dev Revoke a media record (only creator or consensus party can revoke)
      * @param _mediaHash Hash of the media to revoke
      */
-    function revokeMedia(string memory _mediaHash) external {
+    function revokeMedia(string memory _mediaHash) external nonReentrant whenNotPaused {
         MediaRecord storage record = mediaRecords[_mediaHash];
         require(bytes(record.mediaHash).length > 0, "Media not found");
         require(!record.isRevoked, "Already revoked");
@@ -272,5 +292,71 @@ contract MediaAnchor is Ownable, ReentrancyGuard {
         }
         
         return false;
+    }
+
+    // ========================================================================
+    // Dispute Resolution (owner only)
+    // ========================================================================
+
+    event DisputeResolved(
+        string indexed mediaHash,
+        uint256 disputeIndex,
+        bool upheld,
+        address indexed resolver,
+        uint256 timestamp
+    );
+
+    /**
+     * @dev Resolve a pending dispute (owner only).
+     *      If upheld=true, the media stays Disputed/Revoked.
+     *      If upheld=false, the media is restored to Verified.
+     * @param _mediaHash Hash of the disputed media
+     * @param _disputeIndex Index of the dispute in the disputes array
+     * @param _upheld True if the dispute is upheld (media invalid)
+     */
+    function resolveDispute(
+        string memory _mediaHash,
+        uint256 _disputeIndex,
+        bool _upheld
+    ) external onlyOwner nonReentrant {
+        require(bytes(mediaRecords[_mediaHash].mediaHash).length > 0, "Media not found");
+        
+        Dispute[] storage mediaDisputes = disputes[_mediaHash];
+        require(_disputeIndex < mediaDisputes.length, "Invalid dispute index");
+        require(!mediaDisputes[_disputeIndex].resolved, "Dispute already resolved");
+
+        mediaDisputes[_disputeIndex].resolved = true;
+
+        if (_upheld) {
+            // Dispute upheld — keep status as Disputed (or Revoke if needed)
+            mediaRecords[_mediaHash].status = VerificationStatus.Disputed;
+        } else {
+            // Dispute rejected — check if any other unresolved disputes remain
+            bool hasUnresolved = false;
+            for (uint256 i = 0; i < mediaDisputes.length; i++) {
+                if (!mediaDisputes[i].resolved) {
+                    hasUnresolved = true;
+                    break;
+                }
+            }
+            // If no unresolved disputes, restore to Verified
+            if (!hasUnresolved && !mediaRecords[_mediaHash].isRevoked) {
+                mediaRecords[_mediaHash].status = VerificationStatus.Verified;
+            }
+        }
+
+        emit DisputeResolved(_mediaHash, _disputeIndex, _upheld, msg.sender, block.timestamp);
+    }
+
+    // ========================================================================
+    // Pausable controls (owner only)
+    // ========================================================================
+
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
     }
 }

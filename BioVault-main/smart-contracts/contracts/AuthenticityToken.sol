@@ -3,6 +3,8 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 
 /**
  * @title AuthenticityToken
@@ -12,8 +14,13 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  * - ERC-721 compliant but non-transferable (soulbound)
  * - Stores MediaAnchor struct: mediaHash, bioSignature, hardwareID, timestamp
  * - Acts as permanent Authenticity Certificate for Bio-Vault media
+ *
+ * Security:
+ * - ReentrancyGuard on mint
+ * - Pausable for emergency stops
+ * - Soulbound: transfers blocked except mint/burn
  */
-contract AuthenticityToken is ERC721, Ownable {
+contract AuthenticityToken is ERC721, Ownable, ReentrancyGuard, Pausable {
     
     uint256 private _tokenIdCounter;
     
@@ -58,8 +65,12 @@ contract AuthenticityToken is ERC721, Ownable {
         string memory _bioSignature,
         string memory _hardwareID,
         string memory _ipfsHash
-    ) external onlyOwner returns (uint256) {
+    ) external onlyOwner nonReentrant whenNotPaused returns (uint256) {
         require(bytes(_mediaHash).length > 0, "Media hash cannot be empty");
+        require(bytes(_mediaHash).length <= 256, "Media hash too long");
+        require(bytes(_bioSignature).length <= 512, "Bio signature too long");
+        require(bytes(_hardwareID).length <= 256, "Hardware ID too long");
+        require(bytes(_ipfsHash).length <= 256, "IPFS hash too long");
         require(mediaHashToToken[_mediaHash] == 0, "Token already exists for this media");
         
         uint256 tokenId = _tokenIdCounter;
@@ -115,5 +126,39 @@ contract AuthenticityToken is ERC721, Ownable {
      */
     function exists(string memory _mediaHash) external view returns (bool) {
         return mediaHashToToken[_mediaHash] != 0;
+    }
+
+    // ========================================================================
+    // Pausable controls (owner only)
+    // ========================================================================
+
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
+    // ========================================================================
+    // Burn (owner only — for revoking a fraudulent certificate)
+    // ========================================================================
+
+    /**
+     * @dev Burn a soulbound token (emergency revocation by owner)
+     * @param tokenId The token to burn
+     */
+    function burn(uint256 tokenId) external onlyOwner {
+        // Clear associated data
+        string memory mediaHash = tokenAnchors[tokenId].mediaHash;
+        if (bytes(mediaHash).length > 0) {
+            delete mediaHashToToken[mediaHash];
+        }
+        delete tokenAnchors[tokenId];
+        delete isSoulbound[tokenId];
+
+        // ERC-721 _update to address(0) = burn
+        // Pass auth=address(0) to skip approval check (admin burn)
+        _update(address(0), tokenId, address(0));
     }
 }

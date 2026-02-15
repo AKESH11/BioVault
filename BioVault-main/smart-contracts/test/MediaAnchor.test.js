@@ -1,5 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const { anyValue } = require("@nomicfoundation/hardhat-chai-matchers/withArgs");
 
 describe("MediaAnchor Contract", function () {
   let mediaAnchor;
@@ -9,6 +10,25 @@ describe("MediaAnchor Contract", function () {
   const sampleBioSignature = "BPM:72|SIG:abc123";
   const sampleHardwareID = "PRNU:device123";
   const sampleIPFSHash = "QmTest123";
+  const samplePoRHash = "por_hash_abc";
+  const samplePoRIPFS = "QmPoRTest456";
+  const sampleAllUnique = true;
+  const sampleDetectedFaces = 1;
+
+  // Helper: anchor with all 9 params
+  async function anchorFull(signer, hash, parties) {
+    return mediaAnchor.connect(signer).anchorMedia(
+      hash,
+      sampleBioSignature,
+      sampleHardwareID,
+      parties,
+      sampleIPFSHash,
+      samplePoRHash,
+      samplePoRIPFS,
+      sampleAllUnique,
+      sampleDetectedFaces
+    );
+  }
 
   beforeEach(async function () {
     [owner, user1, user2, user3] = await ethers.getSigners();
@@ -28,64 +48,61 @@ describe("MediaAnchor Contract", function () {
     it("Should anchor media with valid data", async function () {
       const consensusParties = [user1.address, user2.address];
       
-      await expect(
-        mediaAnchor.connect(owner).anchorMedia(
-          sampleMediaHash,
-          sampleBioSignature,
-          sampleHardwareID,
-          consensusParties,
-          sampleIPFSHash
-        )
-      )
+      await expect(anchorFull(owner, sampleMediaHash, consensusParties))
         .to.emit(mediaAnchor, "MediaAnchored")
-        .withArgs(sampleMediaHash, owner.address, expect.anything(), sampleHardwareID);
+        .withArgs(
+          anyValue,        // mediaHash (indexed string — hashed)
+          owner.address,
+          anyValue,        // timestamp
+          sampleHardwareID,
+          sampleAllUnique,
+          sampleDetectedFaces
+        );
+    });
+
+    it("Should anchor with Proof of Reality fields", async function () {
+      await anchorFull(owner, sampleMediaHash, [user1.address]);
+      const record = await mediaAnchor.getMediaRecord(sampleMediaHash);
+
+      expect(record.proofOfRealityHash).to.equal(samplePoRHash);
+      expect(record.proofOfRealityIPFS).to.equal(samplePoRIPFS);
+      expect(record.allUniqueSignals).to.equal(true);
+      expect(record.detectedFaces).to.equal(1);
     });
 
     it("Should fail with empty media hash", async function () {
       await expect(
-        mediaAnchor.anchorMedia("", sampleBioSignature, sampleHardwareID, [user1.address], sampleIPFSHash)
+        mediaAnchor.anchorMedia(
+          "", sampleBioSignature, sampleHardwareID, [user1.address],
+          sampleIPFSHash, samplePoRHash, samplePoRIPFS, true, 1
+        )
       ).to.be.revertedWith("Media hash cannot be empty");
     });
 
-    it("Should fail with no consensus parties", async function () {
-      await expect(
-        mediaAnchor.anchorMedia(sampleMediaHash, sampleBioSignature, sampleHardwareID, [], sampleIPFSHash)
-      ).to.be.revertedWith("At least one consensus party required");
+    it("Should auto-include creator when no consensus parties provided", async function () {
+      // Solo recording: empty consensusParties => contract auto-adds msg.sender
+      await mediaAnchor.anchorMedia(
+        sampleMediaHash, sampleBioSignature, sampleHardwareID, [],
+        sampleIPFSHash, samplePoRHash, samplePoRIPFS, true, 1
+      );
+      const record = await mediaAnchor.getMediaRecord(sampleMediaHash);
+      expect(record.consensusParties.length).to.equal(1);
+      expect(record.consensusParties[0]).to.equal(owner.address);
+      expect(await mediaAnchor.hasConsent(sampleMediaHash, owner.address)).to.be.true;
     });
 
     it("Should fail when anchoring duplicate hash", async function () {
-      const consensusParties = [user1.address];
-      
-      await mediaAnchor.anchorMedia(
-        sampleMediaHash,
-        sampleBioSignature,
-        sampleHardwareID,
-        consensusParties,
-        sampleIPFSHash
-      );
+      await anchorFull(owner, sampleMediaHash, [user1.address]);
 
       await expect(
-        mediaAnchor.anchorMedia(
-          sampleMediaHash,
-          sampleBioSignature,
-          sampleHardwareID,
-          consensusParties,
-          sampleIPFSHash
-        )
+        anchorFull(owner, sampleMediaHash, [user1.address])
       ).to.be.revertedWith("Media already anchored");
     });
   });
 
   describe("Media Verification", function () {
     beforeEach(async function () {
-      const consensusParties = [user1.address, user2.address];
-      await mediaAnchor.anchorMedia(
-        sampleMediaHash,
-        sampleBioSignature,
-        sampleHardwareID,
-        consensusParties,
-        sampleIPFSHash
-      );
+      await anchorFull(owner, sampleMediaHash, [user1.address, user2.address]);
     });
 
     it("Should verify existing media", async function () {
@@ -106,15 +123,7 @@ describe("MediaAnchor Contract", function () {
 
   describe("Consent Tracking", function () {
     it("Should track all consensus parties", async function () {
-      const consensusParties = [user1.address, user2.address];
-      
-      await mediaAnchor.anchorMedia(
-        sampleMediaHash,
-        sampleBioSignature,
-        sampleHardwareID,
-        consensusParties,
-        sampleIPFSHash
-      );
+      await anchorFull(owner, sampleMediaHash, [user1.address, user2.address]);
 
       expect(await mediaAnchor.hasConsent(sampleMediaHash, user1.address)).to.be.true;
       expect(await mediaAnchor.hasConsent(sampleMediaHash, user2.address)).to.be.true;
@@ -124,13 +133,7 @@ describe("MediaAnchor Contract", function () {
 
   describe("Disputes", function () {
     beforeEach(async function () {
-      await mediaAnchor.anchorMedia(
-        sampleMediaHash,
-        sampleBioSignature,
-        sampleHardwareID,
-        [user1.address],
-        sampleIPFSHash
-      );
+      await anchorFull(owner, sampleMediaHash, [user1.address]);
     });
 
     it("Should allow anyone to dispute media", async function () {
@@ -138,7 +141,7 @@ describe("MediaAnchor Contract", function () {
         mediaAnchor.connect(user3).disputeMedia(sampleMediaHash, "Fake video")
       )
         .to.emit(mediaAnchor, "MediaDisputed")
-        .withArgs(sampleMediaHash, user3.address, "Fake video", expect.anything());
+        .withArgs(anyValue, user3.address, "Fake video", anyValue);
     });
 
     it("Should track disputes", async function () {
@@ -153,19 +156,13 @@ describe("MediaAnchor Contract", function () {
 
   describe("Revocation", function () {
     beforeEach(async function () {
-      await mediaAnchor.connect(owner).anchorMedia(
-        sampleMediaHash,
-        sampleBioSignature,
-        sampleHardwareID,
-        [user1.address],
-        sampleIPFSHash
-      );
+      await anchorFull(owner, sampleMediaHash, [user1.address]);
     });
 
     it("Should allow creator to revoke", async function () {
       await expect(mediaAnchor.connect(owner).revokeMedia(sampleMediaHash))
         .to.emit(mediaAnchor, "MediaRevoked")
-        .withArgs(sampleMediaHash, owner.address, expect.anything());
+        .withArgs(anyValue, owner.address, anyValue);
     });
 
     it("Should allow consensus party to revoke", async function () {
@@ -185,6 +182,64 @@ describe("MediaAnchor Contract", function () {
       const [exists, isValid] = await mediaAnchor.verifyMedia(sampleMediaHash);
       expect(exists).to.be.true;
       expect(isValid).to.be.false;
+    });
+  });
+
+  describe("Dispute Resolution", function () {
+    beforeEach(async function () {
+      await anchorFull(owner, sampleMediaHash, [user1.address]);
+      await mediaAnchor.connect(user3).disputeMedia(sampleMediaHash, "Fake video");
+    });
+
+    it("Should allow owner to resolve a dispute (reject)", async function () {
+      await expect(mediaAnchor.connect(owner).resolveDispute(sampleMediaHash, 0, false))
+        .to.emit(mediaAnchor, "DisputeResolved");
+
+      // Status should be restored to Verified
+      const [, isValid] = await mediaAnchor.verifyMedia(sampleMediaHash);
+      expect(isValid).to.be.true;
+    });
+
+    it("Should allow owner to uphold a dispute", async function () {
+      await mediaAnchor.connect(owner).resolveDispute(sampleMediaHash, 0, true);
+
+      const [, isValid] = await mediaAnchor.verifyMedia(sampleMediaHash);
+      expect(isValid).to.be.false;
+    });
+
+    it("Should reject non-owner resolving a dispute", async function () {
+      await expect(
+        mediaAnchor.connect(user1).resolveDispute(sampleMediaHash, 0, false)
+      ).to.be.revertedWithCustomError(mediaAnchor, "OwnableUnauthorizedAccount");
+    });
+
+    it("Should reject resolving already-resolved dispute", async function () {
+      await mediaAnchor.connect(owner).resolveDispute(sampleMediaHash, 0, false);
+      await expect(
+        mediaAnchor.connect(owner).resolveDispute(sampleMediaHash, 0, false)
+      ).to.be.revertedWith("Dispute already resolved");
+    });
+  });
+
+  describe("Pausable", function () {
+    it("Should allow owner to pause and unpause", async function () {
+      await mediaAnchor.connect(owner).pause();
+      
+      await expect(
+        anchorFull(owner, sampleMediaHash, [user1.address])
+      ).to.be.revertedWithCustomError(mediaAnchor, "EnforcedPause");
+
+      await mediaAnchor.connect(owner).unpause();
+
+      // Should work again after unpause
+      await expect(anchorFull(owner, sampleMediaHash, [user1.address]))
+        .to.emit(mediaAnchor, "MediaAnchored");
+    });
+
+    it("Should prevent non-owner from pausing", async function () {
+      await expect(
+        mediaAnchor.connect(user1).pause()
+      ).to.be.revertedWithCustomError(mediaAnchor, "OwnableUnauthorizedAccount");
     });
   });
 });

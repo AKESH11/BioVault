@@ -1,6 +1,8 @@
 const express = require('express');
 const logger = require('../utils/logger');
 const axios = require('axios');
+const { validate, schemas } = require('../middleware/validation');
+const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -8,14 +10,21 @@ const router = express.Router();
 const IPFS_API_URL = process.env.IPFS_API_URL || 'http://127.0.0.1:5001';
 const IPFS_GATEWAY_URL = process.env.IPFS_GATEWAY_URL || 'https://ipfs.io';
 
+// Kubo 0.34+ requires Origin header for CORS — create a pre-configured axios instance
+const ipfsClient = axios.create({
+    baseURL: IPFS_API_URL,
+    headers: { 'Origin': 'http://localhost:3000' },
+    timeout: 60000
+});
+
 // Test IPFS connection on startup
 async function testIPFSConnection() {
     try {
-        const response = await axios.post(`${IPFS_API_URL}/api/v0/version`);
-        logger.info(`✅ IPFS connected - Version: ${response.data.Version}`);
+        const response = await ipfsClient.post('/api/v0/version');
+        logger.info(`IPFS connected - Kubo ${response.data.Version}`);
         return true;
     } catch (error) {
-        logger.warn(`⚠️ IPFS not available at ${IPFS_API_URL} - Using fallback mode`);
+        logger.warn(`IPFS not available at ${IPFS_API_URL} - Using fallback mode`);
         return false;
     }
 }
@@ -27,13 +36,11 @@ testIPFSConnection().then(available => { ipfsAvailable = available; });
  * POST /api/ipfs/upload
  * Upload encrypted media to IPFS via Kubo RPC API
  */
-router.post('/upload', async (req, res) => {
+router.post('/upload', requireAuth, validate(schemas.ipfsUpload), async (req, res) => {
     try {
         const { data, filename, metadata } = req.body;
         
-        if (!data) {
-            return res.status(400).json({ error: 'No data provided' });
-        }
+        // Validated by Joi middleware
         
         if (!ipfsAvailable) {
             return res.status(503).json({ 
@@ -51,7 +58,7 @@ router.post('/upload', async (req, res) => {
         form.append('file', buffer, { filename: filename || 'media' });
         
         // Upload to IPFS via HTTP API
-        const response = await axios.post(`${IPFS_API_URL}/api/v0/add`, form, {
+        const response = await ipfsClient.post('/api/v0/add', form, {
             headers: form.getHeaders(),
             params: {
                 pin: 'true',
@@ -76,7 +83,7 @@ router.post('/upload', async (req, res) => {
             const metadataForm = new FormData();
             metadataForm.append('file', JSON.stringify(metadataObj), { filename: 'metadata.json' });
             
-            const metadataResponse = await axios.post(`${IPFS_API_URL}/api/v0/add`, metadataForm, {
+            const metadataResponse = await ipfsClient.post('/api/v0/add', metadataForm, {
                 headers: metadataForm.getHeaders(),
                 params: { pin: 'true' }
             });
@@ -117,7 +124,7 @@ router.get('/:cid', async (req, res) => {
         }
         
         // Fetch from local IPFS node
-        const response = await axios.post(`${IPFS_API_URL}/api/v0/cat`, null, {
+        const response = await ipfsClient.post('/api/v0/cat', null, {
             params: { arg: cid },
             responseType: 'arraybuffer',
             timeout: 30000
@@ -147,13 +154,9 @@ router.get('/:cid', async (req, res) => {
  * POST /api/ipfs/pin
  * Pin content to ensure it stays on IPFS
  */
-router.post('/pin', async (req, res) => {
+router.post('/pin', requireAuth, validate(schemas.ipfsPin), async (req, res) => {
     try {
         const { cid } = req.body;
-        
-        if (!cid) {
-            return res.status(400).json({ error: 'CID required' });
-        }
         
         if (!ipfsAvailable) {
             return res.status(503).json({ 
@@ -163,7 +166,7 @@ router.post('/pin', async (req, res) => {
         }
         
         // Pin via HTTP API
-        await axios.post(`${IPFS_API_URL}/api/v0/pin/add`, null, {
+        await ipfsClient.post('/api/v0/pin/add', null, {
             params: { arg: cid },
             timeout: 60000
         });
