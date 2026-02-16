@@ -213,27 +213,29 @@ router.post('/anchor', requireAuth, validate(schemas.anchorMedia), async (req, r
         }
 
         // Send transaction using server-side wallet
-        const tx = await mediaAnchorContract.anchorMedia(
-            mediaHash,
-            bioSignature,
-            hardwareID,
-            consensusParties,
-            ipfsHash,
-            proofOfRealityHash || '',
-            proofOfRealityIPFS || '',
-            allUniqueSignals ?? true,
-            detectedFaces ?? 1
+        const tx = await req.txQueue.enqueue(
+            () => mediaAnchorContract.anchorMedia(
+                mediaHash,
+                bioSignature,
+                hardwareID,
+                consensusParties,
+                ipfsHash,
+                proofOfRealityHash || '',
+                proofOfRealityIPFS || '',
+                allUniqueSignals ?? true,
+                detectedFaces ?? 1
+            ),
+            { label: `anchor:${mediaHash.slice(0, 10)}` }
         );
 
         logger.info(`Anchoring media: ${mediaHash} | tx: ${tx.hash}`);
-        const receipt = await tx.wait();
 
         const result = {
             success: true,
-            transactionHash: receipt.hash,
-            blockNumber: receipt.blockNumber,
+            transactionHash: tx.hash,
+            blockNumber: tx.blockNumber,
             mediaHash,
-            gasUsed: receipt.gasUsed.toString()
+            gasUsed: tx.gasUsed.toString()
         };
 
         // Broadcast to WebSocket clients
@@ -333,8 +335,10 @@ router.post('/dispute', requireAuth, validate(schemas.dispute), async (req, res)
             return res.status(503).json({ error: 'Server wallet not configured' });
         }
         
-        const tx = await mediaAnchorContract.disputeMedia(mediaHash, reason);
-        const receipt = await tx.wait();
+        const receipt = await req.txQueue.enqueue(
+            () => mediaAnchorContract.disputeMedia(mediaHash, reason),
+            { label: `dispute:${mediaHash.slice(0, 10)}` }
+        );
         
         const result = {
             success: true,
@@ -371,8 +375,10 @@ router.post('/revoke', requireAuth, async (req, res) => {
             return res.status(503).json({ error: 'Server wallet not configured' });
         }
 
-        const tx = await mediaAnchorContract.revokeMedia(mediaHash);
-        const receipt = await tx.wait();
+        const receipt = await req.txQueue.enqueue(
+            () => mediaAnchorContract.revokeMedia(mediaHash),
+            { label: `revoke:${mediaHash.slice(0, 10)}` }
+        );
 
         const result = {
             success: true,
@@ -526,11 +532,13 @@ router.post('/mint', requireAuth, async (req, res) => {
             return res.status(503).json({ error: 'Server wallet not configured' });
         }
 
-        const tx = await authenticityTokenContract.mint(
-            to, mediaHash, bioSignature, hardwareID, ipfsHash
+        const receipt = await req.txQueue.enqueue(
+            () => authenticityTokenContract.mint(
+                to, mediaHash, bioSignature, hardwareID, ipfsHash
+            ),
+            { label: `mint:${mediaHash.slice(0, 10)}` }
         );
-        logger.info(`Minting authenticity token for: ${mediaHash} | tx: ${tx.hash}`);
-        const receipt = await tx.wait();
+        logger.info(`Minting authenticity token for: ${mediaHash} | tx: ${receipt.hash}`);
 
         // Parse the AuthenticityMinted event to get tokenId
         let tokenId = null;

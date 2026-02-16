@@ -93,3 +93,8 @@ cmake_install.cmake
 *.key
 *.pem
 secrets/
+
+# Android release keystore
+*.keystore
+!mobile-app/android/app/debug.keystore
+keystore.properties

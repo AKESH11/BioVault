@@ -31,14 +31,14 @@ export default function VerifyScreen({navigation}) {
     setZkpResult(null);
 
     try {
-      // Step 1: Quick verification check
-      const verifyResult = await apiService.verifyMedia(trimmed);
+      // Step 1: Quick verification check — uses smart fallback (backend → direct RPC)
+      const verifyResult = await apiService.smartVerifyMedia(trimmed);
       setResult(verifyResult);
 
       // Step 2: If exists, fetch full record
       if (verifyResult.exists) {
         try {
-          const fullRecord = await apiService.getMediaRecord(trimmed);
+          const fullRecord = await apiService.smartGetMediaRecord(trimmed);
           setRecord(fullRecord);
         } catch (recordError) {
           console.warn('Could not fetch full record:', recordError.message);

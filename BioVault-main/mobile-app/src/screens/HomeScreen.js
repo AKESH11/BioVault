@@ -2,6 +2,7 @@ import React, {useState, useEffect, useCallback} from 'react';
 import {View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, NativeModules, AppState} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiService from '../services/ApiService';
+import blockchainService from '../services/BlockchainService';
 import anchorQueue from '../services/AnchorQueue';
 
 const {BioVaultModule} = NativeModules;
@@ -14,6 +15,9 @@ export default function HomeScreen({navigation}) {
   const [hardwareSecurity, setHardwareSecurity] = useState('Checking...');
   const [realityKey, setRealityKey] = useState('Checking...');
   const [backendStatus, setBackendStatus] = useState('Checking...');
+  const [appMode, setAppMode] = useState('checking'); // 'server' | 'standalone' | 'offline'
+  const [walletAddress, setWalletAddress] = useState(null);
+  const [walletBalance, setWalletBalance] = useState(null);
   const [calibrationStatus, setCalibrationStatus] = useState(null);
   const [contractAddress, setContractAddress] = useState(null);
   const [contractStatus, setContractStatus] = useState('Checking...');
@@ -113,17 +117,27 @@ export default function HomeScreen({navigation}) {
       setRealityKey('Check failed');
     }
 
-    // Check backend connectivity
+    // Smart connectivity check — tries backend, falls back to direct RPC
     try {
-      const health = await apiService.healthCheck();
-      setBackendStatus(health.server === 'healthy' ? 'Connected' : 'Degraded');
+      const health = await apiService.smartHealthCheck();
+      if (health.mode === 'server') {
+        setBackendStatus('Connected');
+        setAppMode('server');
+      } else if (health.mode === 'standalone' && health.blockchain?.status === 'connected') {
+        setBackendStatus('Standalone');
+        setAppMode('standalone');
+      } else {
+        setBackendStatus('Offline');
+        setAppMode('offline');
+      }
     } catch (e) {
       setBackendStatus('Offline');
+      setAppMode('offline');
     }
 
-    // Get contract addresses from backend
+    // Smart contract status — backend or direct chain
     try {
-      const contracts = await apiService.contractsStatus();
+      const contracts = await apiService.smartContractsStatus();
       if (contracts?.mediaAnchor?.address) {
         const addr = contracts.mediaAnchor.address;
         setContractAddress(addr.slice(0, 6) + '...' + addr.slice(-4));
@@ -134,6 +148,17 @@ export default function HomeScreen({navigation}) {
     } catch (e) {
       setContractStatus('Unknown');
     }
+
+    // Check in-app wallet
+    try {
+      await blockchainService.init();
+      const addr = blockchainService.getAddress();
+      if (addr) {
+        setWalletAddress(addr.slice(0, 6) + '...' + addr.slice(-4));
+        const bal = await blockchainService.getBalance();
+        setWalletBalance(parseFloat(bal).toFixed(4) + ' MATIC');
+      }
+    } catch (_) {}
 
     setIsInitialized(true);
 
@@ -193,8 +218,10 @@ export default function HomeScreen({navigation}) {
       <View style={styles.header}>
         <Text style={styles.title}>🔐 Bio-Vault Protocol</Text>
         {isInitialized && (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>✓ Initialized</Text>
+          <View style={[styles.badge, appMode === 'standalone' && styles.badgeStandalone]}>
+            <Text style={styles.badgeText}>
+              {appMode === 'server' ? '✓ Server Mode' : appMode === 'standalone' ? '⚡ Standalone' : '✓ Initialized'}
+            </Text>
           </View>
         )}
       </View>
@@ -228,8 +255,15 @@ export default function HomeScreen({navigation}) {
         <Text style={styles.cardTitle}>Backend & Blockchain</Text>
         
         <View style={styles.row}>
+          <Text style={styles.label}>Mode</Text>
+          <Text style={appMode === 'server' ? styles.valueGreen : appMode === 'standalone' ? styles.valueCyan : styles.valueRed}>
+            {appMode === 'server' ? '🖥️ Server' : appMode === 'standalone' ? '📱 Standalone' : '⚠️ Offline'}
+          </Text>
+        </View>
+
+        <View style={styles.row}>
           <Text style={styles.label}>Backend Server</Text>
-          <Text style={backendStatus === 'Connected' ? styles.valueGreen : backendStatus === 'Offline' ? styles.valueRed : styles.valueYellow}>
+          <Text style={backendStatus === 'Connected' ? styles.valueGreen : backendStatus === 'Standalone' ? styles.valueCyan : styles.valueRed}>
             {backendStatus}
           </Text>
         </View>
@@ -245,11 +279,24 @@ export default function HomeScreen({navigation}) {
         </View>
 
         <View style={styles.row}>
-          <Text style={styles.label}>Status</Text>
+          <Text style={styles.label}>Contract Status</Text>
           <Text style={contractStatus === 'Connected' ? styles.valueGreen : styles.valueYellow}>
             {contractStatus === 'Connected' ? '✓ Deployed' : contractStatus}
           </Text>
         </View>
+
+        {walletAddress && (
+          <>
+            <View style={styles.row}>
+              <Text style={styles.label}>In-App Wallet</Text>
+              <Text style={styles.valueSmall}>{walletAddress}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>Balance</Text>
+              <Text style={styles.value}>{walletBalance || '...'}</Text>
+            </View>
+          </>
+        )}
       </View>
 
       <View style={styles.actionsCard}>
@@ -293,6 +340,36 @@ export default function HomeScreen({navigation}) {
           </View>
         </TouchableOpacity>
 
+        {!walletAddress && (
+          <TouchableOpacity
+            style={[styles.actionButton, styles.walletButton]}
+            onPress={async () => {
+              try {
+                await blockchainService.init();
+                const { address, mnemonic } = await blockchainService.createWallet();
+                setWalletAddress(address.slice(0, 6) + '...' + address.slice(-4));
+                setWalletBalance('0.0000 MATIC');
+                Alert.alert(
+                  'Wallet Created',
+                  `Address: ${address}\n\n` +
+                  (mnemonic ? `⚠️ Save your recovery phrase:\n\n${mnemonic}\n\n` : '') +
+                  'Fund this wallet with Amoy testnet MATIC from:\nhttps://faucet.polygon.technology/',
+                  [{text: 'OK'}]
+                );
+              } catch (err) {
+                Alert.alert('Error', err.message);
+              }
+            }}>
+            <Text style={styles.actionIcon}>💳</Text>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Setup Wallet</Text>
+              <Text style={styles.actionSubtitle}>
+                Create in-app wallet for standalone anchoring
+              </Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
         <TouchableOpacity
           style={styles.actionButton}
           onPress={() => navigation.navigate('MediaLibrary')}>
@@ -332,7 +409,7 @@ export default function HomeScreen({navigation}) {
       <TouchableOpacity
         style={styles.logoutButton}
         onPress={async () => {
-          await AsyncStorage.removeItem('biovault_auth');
+          await AsyncStorage.multiRemove(['biovault_auth', 'biovault_user_profile']);
           apiService.setAccessToken(null);
           navigation.replace('Login');
         }}>
@@ -364,6 +441,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: 16,
+  },
+  badgeStandalone: {
+    backgroundColor: '#06b6d4',
   },
   badgeText: {
     color: '#ffffff',
@@ -415,6 +495,11 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     fontWeight: '600',
   },
+  valueCyan: {
+    fontSize: 14,
+    color: '#06b6d4',
+    fontWeight: '600',
+  },
   valueSmall: {
     fontSize: 12,
     color: '#ffffff',
@@ -446,6 +531,10 @@ const styles = StyleSheet.create({
   queueButton: {
     backgroundColor: '#f59e0b22',
     borderColor: '#f59e0b',
+  },
+  walletButton: {
+    backgroundColor: '#06b6d411',
+    borderColor: '#06b6d4',
   },
   actionIcon: {
     fontSize: 32,

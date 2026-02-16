@@ -19,6 +19,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiService from './ApiService';
+import blockchainService from './BlockchainService';
 
 const QUEUE_KEY = 'biovault_pending_anchors';
 const MAX_RETRIES = 5;
@@ -84,10 +85,11 @@ class AnchorQueue {
     let failed = 0;
 
     try {
-      // First check if backend is reachable
-      const isOnline = await this._checkBackend();
-      if (!isOnline) {
-        console.log('[AnchorQueue] Backend offline, skipping queue processing');
+      // Check if backend OR direct blockchain is available
+      const backendOk = await this._checkBackend();
+      const chainOk = !backendOk ? await blockchainService.isAvailable() : false;
+      if (!backendOk && !chainOk) {
+        console.log('[AnchorQueue] Both backend and blockchain offline, skipping');
         return { succeeded: 0, failed: 0, remaining: await this.getPendingCount() };
       }
 
@@ -107,7 +109,8 @@ class AnchorQueue {
 
         try {
           console.log(`[AnchorQueue] Retrying anchor ${item.id} (attempt ${item.retries})`);
-          const result = await apiService.anchorMedia(item.payload);
+          // Smart: tries backend first, falls back to in-app wallet
+          const result = await apiService.smartAnchorMedia(item.payload);
 
           // Success — save to "my media" list
           await this._saveAnchorResult(item, result);

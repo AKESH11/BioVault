@@ -1,0 +1,148 @@
+﻿--------- beginning of main
+02-16 00:26:52.659 25566 25646 I ReactNativeJS: Running "BioVault" with {"rootTag":11}
+02-16 00:27:09.786 25566 25646 I ReactNativeJS: Native camera initialized
+02-16 00:27:09.809 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:09.929 25566 25646 I ReactNativeJS: [BioVault] Camera is ready!
+02-16 00:27:10.102 25566 25646 I ReactNativeJS: [BioVault] Camera is ready!
+02-16 00:27:12.122 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:12.149 25566 25646 I ReactNativeJS: '[BioVault] rPPG extraction started:', true
+02-16 00:27:12.197 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:12.331 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:12.579 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:12.687 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:13.168 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:13.223 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:13.238 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:13.255 25566 25646 I ReactNativeJS: '[BioVault] rPPG extraction stopped:', '{"success":true,"videoHash":"0x0000000000000000000000000000000000000000000000000000000000000000","bioSignature":"0x0000000000000000000000000000000000000000000000000000000000000000","hardwareDNA":"0x0000000000000000000000000000000000000000000000000000000000000000","averageBPM":72,"confidence":0.85,"frameCount":0}'
+02-16 00:27:15.698 25566 25646 I ReactNativeJS: '[BioVault] Recording saved to:', '/data/user/0/com.biovault/files/biovault/media/mlo3xmzsn0ao.json'
+02-16 00:27:20.065 25566 25646 I ReactNativeJS: Native camera initialized
+02-16 00:27:20.071 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:20.136 25566 25646 I ReactNativeJS: [BioVault] Camera is ready!
+02-16 00:27:20.308 25566 25646 I ReactNativeJS: [BioVault] Camera is ready!
+02-16 00:27:22.932 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:22.962 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:22.986 25566 25646 I ReactNativeJS: '[BioVault] rPPG extraction started:', true
+02-16 00:27:23.047 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:23.906 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:23.980 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:24.007 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:24.862 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:24.968 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:24.990 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:25.814 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:25.938 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:25.950 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:26.051 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:26.773 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:26.903 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:26.935 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:27.015 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:27.857 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:27.920 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:28.817 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:28.904 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:28.943 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:29.779 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:29.892 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:29.920 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:30.860 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:30.895 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:30.975 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:31.867 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:31.927 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:32.066 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:32.148 25566 25646 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:27:32.176 25566 25646 I ReactNativeJS: '[BioVault] rPPG extraction stopped:', '{"success":true,"videoHash":"0x0000000000000000000000000000000000000000000000000000000000000000","bioSignature":"0x0000000000000000000000000000000000000000000000000000000000000000","hardwareDNA":"0x0000000000000000000000000000000000000000000000000000000000000000","averageBPM":72,"confidence":0.85,"frameCount":0}'
+02-16 00:27:33.157 25566 25646 I ReactNativeJS: '[BioVault] Recording saved to:', '/data/user/0/com.biovault/files/biovault/media/mlo3y0gwsm24.json'
+02-16 00:27:35.117 25566 25646 I ReactNativeJS: [BioVault] Anchor button tapped ÔÇö starting anchor flow
+02-16 00:27:35.361 25566 25646 I ReactNativeJS: '[BioVault] Hash check: videoHash zero?', false, 'proofHash zero?', false, 'effectiveHash:', '{"error": "Not initi...'
+02-16 00:27:41.694 25566 25646 I ReactNativeJS: '[BioVault] Anchor call error:', 'Media already anchored'
+02-16 00:27:41.695 25566 25646 I ReactNativeJS: '[BioVault] Anchor result:', '{"success":true,"alreadyAnchored":true}'
+02-16 00:32:58.215 27663 27739 I ReactNativeJS: Running "BioVault" with {"rootTag":11}
+02-16 00:33:31.257 27663 27739 I ReactNativeJS: Native camera initialized
+02-16 00:33:31.285 27663 27739 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:33:31.396 27663 27739 I ReactNativeJS: [BioVault] Camera is ready!
+02-16 00:33:31.584 27663 27739 I ReactNativeJS: [BioVault] Camera is ready!
+02-16 00:33:33.339 27663 27739 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:33:33.383 27663 27739 I ReactNativeJS: '[BioVault] rPPG extraction started:', true
+02-16 00:33:33.386 27663 27739 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:33:33.481 27663 27739 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:33:34.094 27663 27739 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:33:34.205 27663 27739 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:33:34.414 27663 27739 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:33:34.439 27663 27739 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:33:34.506 27663 27739 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:33:34.529 27663 27739 I ReactNativeJS: '[BioVault] rPPG extraction stopped:', '{"success":true,"videoHash":"0x0000000000000000000000000000000000000000000000000000000000000000","bioSignature":"0x0000000000000000000000000000000000000000000000000000000000000000","hardwareDNA":"0x0000000000000000000000000000000000000000000000000000000000000000","averageBPM":72,"confidence":0.85,"frameCount":0}'
+02-16 00:33:35.273 27663 27739 I ReactNativeJS: '[BioVault] Recording saved to:', '/data/user/0/com.biovault/files/biovault/media/mlo45rvfj09p.json'
+02-16 00:33:38.323 27663 27739 I ReactNativeJS: [BioVault] Anchor button tapped ÔÇö starting anchor flow
+02-16 00:33:38.641 27663 27739 I ReactNativeJS: '[BioVault] Hash check: videoHash invalid?', true, 'proofHash invalid?', true, 'effectiveHash:', 'NONE (will SHA-256)'
+02-16 00:33:38.688 27663 27739 I ReactNativeJS: '[BioVault] Generated SHA-256 fallback hash:', 'e0882531e9d9d71c93e6...'
+02-16 00:33:45.425 27663 27739 I ReactNativeJS: '[BioVault] Anchor call error:', 'could not coalesce error (error={ "code": -32000, "data": { "data": null, "message": "Nonce too high. Expected nonce to be 174 but got 192. Note that transactions can\'t be queued when automining." }, "message": "Nonce too high. Expected nonce to be 174 but got 192. Note that transactions can\'t be queued when automining." }, payload={ "id": 123, "jsonrpc": "2.0", "method": "eth_sendRawTransaction", "params": [ "0x02f90414827a6981c0843b9aca00843b9aca10830b2a65947a2088a1bfc9d81c55368ae168c2c02570cb814f80b903a48272fd14000000000000000000000000000000000000000000000000000000000000012000000000000000000000000000000000000000000000000000000000000001800000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000028000000000000000000000000000000000000000000000000000000000000002a00000000000000000000000000000000000000000000000000000000000000300000000000000000000000000000000000000000000000000000000000000034000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000004065303838323533316539643964373163393365363334333161313661653834396464353936333266343233393933663062653232643765353332653436623766000000000000000000000000000000000000000000000000000000000000005e62706d3a37303a68773a4f6e65506c75732f435048323536392f4f50353935334c313a31352f415033412e3234303631372e3030382f542e523454322e323233616539395f312d35316137353a757365722f72656c656173652d6b657973000000000000000000000000000000000000000000000000000000000000000000544f6e65506c75732f435048323536392f4f50353935334c313a31352f415033412e3234303631372e3030382f542e523454322e323233616539395f312d35316137353a757365722f72656c656173652d6b6579730000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002e516d55526a576d73586b7559514b326d59535473636d7a5834647131704b4e796275666d5634624661463138394e000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001c7b226572726f72223a20224e6f7420696e697469616c697a6564227d00000000000000000000000000000000000000000000000000000000000000000000002e516d5268587a7738793563676967366d4662727268676763387343415353476a384e734731796a4364666f63374a000000000000000000000000000000000000c001a0c765ae39866e0972e35d4238304490bfa3be277a3daac4abafc46dd75c655430a050b61c1fdb2c48c69329349e7e11f5193dd03678de9056bccfcb5c8909b69bc5" ] }, code=UNKNOWN_ERROR, version=6.16.0)'
+02-16 00:33:45.531 27663 27739 I ReactNativeJS: [AnchorQueue] Enqueued anchor (3 in queue)
+02-16 00:33:54.480 28075 28137 I ReactNativeJS: Running "BioVault" with {"rootTag":11}
+02-16 00:33:57.700 28075 28137 I ReactNativeJS: [AnchorQueue] Retrying anchor mlo45zs942vh (attempt 1)
+02-16 00:33:58.004 28075 28137 W ReactNativeJS: [AnchorQueue] Anchor mlo45zs942vh failed: could not coalesce error (error={ "code": -32000, "data": { "data": null, "message": "Nonce too high. Expected nonce to be 174 but got 193. Note that transactions can't be queued when automining." }, "message": "Nonce too high. Expected nonce to be 174 but got 193. Note that transactions can't be queued when automining." }, payload={ "id": 137, "jsonrpc": "2.0", "method": "eth_sendRawTransaction", "params": [ "0x02f90394827a6981c1843b9aca00843b9aca1083092bae947a2088a1bfc9d81c55368ae168c2c02570cb814f80b903248272fd14000000000000000000000000000000000000000000000000000000000000012000000000000000000000000000000000000000000000000000000000000001800000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000028000000000000000000000000000000000000000000000000000000000000002a000000000000000000000000000000000000000000000000000000000000002c0000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000004065316339343364306538656266613639306663633731393830383031666338633430376331356665623537313738356631376161316334646563643636663966000000000000000000000000000000000000000000000000000000000000005e62706d3a37303a68773a4f6e65506c75732f435048323536392f4f50353935334c313a31352f415033412e3234303631372e3030382f542e523454322e323233616539395f312d35316137353a757365722f72656c656173652d6b657973000000000000000000000000000000000000000000000000000000000000000000544f6e65506c75732f435048323536392f4f50353935334c313a31352f415033412e3234303631372e3030382f542e523454322e323233616539395f312d35316137353a757365722f72656c656173652d6b65797300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001c7b226572726f72223a20224e6f7420696e697469616c697a6564227d000000000000000000000000000000000000000000000000000000000000000000000000c001a0373c96282388863b54bbeae9cabd9ddfd5267a8b7e162ed4d4571b04db61ce6ba025d9a15d27cf6f89e55b34756c64af6684a21f38d8919bc06fc4fa4a664b37a8" ] }, code=UNKNOWN_ERROR, version=6.16.0)
+02-16 00:34:01.030 28075 28137 I ReactNativeJS: [AnchorQueue] Done: 0 succeeded, 0 permanently failed, 3 remaining
+02-16 00:36:25.680 28075 28137 I ReactNativeJS: [AnchorQueue] Retrying anchor mlo45zs942vh (attempt 2)
+02-16 00:36:25.870 28075 28137 W ReactNativeJS: [AnchorQueue] Anchor mlo45zs942vh failed: could not coalesce error (error={ "code": -32000, "data": { "data": null, "message": "Nonce too high. Expected nonce to be 174 but got 194. Note that transactions can't be queued when automining." }, "message": "Nonce too high. Expected nonce to be 174 but got 194. Note that transactions can't be queued when automining." }, payload={ "id": 149, "jsonrpc": "2.0", "method": "eth_sendRawTransaction", "params": [ "0x02f90394827a6981c2843b9aca00843b9aca1083092bae947a2088a1bfc9d81c55368ae168c2c02570cb814f80b903248272fd14000000000000000000000000000000000000000000000000000000000000012000000000000000000000000000000000000000000000000000000000000001800000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000028000000000000000000000000000000000000000000000000000000000000002a000000000000000000000000000000000000000000000000000000000000002c0000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000004065316339343364306538656266613639306663633731393830383031666338633430376331356665623537313738356631376161316334646563643636663966000000000000000000000000000000000000000000000000000000000000005e62706d3a37303a68773a4f6e65506c75732f435048323536392f4f50353935334c313a31352f415033412e3234303631372e3030382f542e523454322e323233616539395f312d35316137353a757365722f72656c656173652d6b657973000000000000000000000000000000000000000000000000000000000000000000544f6e65506c75732f435048323536392f4f50353935334c313a31352f415033412e3234303631372e3030382f542e523454322e323233616539395f312d35316137353a757365722f72656c656173652d6b65797300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001c7b226572726f72223a20224e6f7420696e697469616c697a6564227d000000000000000000000000000000000000000000000000000000000000000000000000c080a015a6105d1ee36e54a7f93137ff4a267dead9f8abbfcc38b2716d2ca5bc1e8e4ea05f37b50bd0269ba89488054f94e2687e7b05daba25e7568560d9a468af9631d9" ] }, code=UNKNOWN_ERROR, version=6.16.0)
+02-16 00:36:28.899 28075 28137 I ReactNativeJS: [AnchorQueue] Done: 0 succeeded, 0 permanently failed, 3 remaining
+02-16 00:44:30.503 30056 30117 I ReactNativeJS: Running "BioVault" with {"rootTag":11}
+02-16 00:44:33.730 30056 30117 I ReactNativeJS: [AnchorQueue] Retrying anchor mlo45zs942vh (attempt 3)
+02-16 00:44:34.277 30056 30117 I ReactNativeJS: [AnchorQueue] Anchor mlo45zs942vh succeeded: tx=0x421e10e6990d6c1186ef1fc5f5cb60cb49ec5dfaf6003aa96b50e2fa7d805a06
+02-16 00:44:34.279 30056 30117 I ReactNativeJS: [AnchorQueue] Done: 1 succeeded, 0 permanently failed, 2 remaining
+02-16 00:44:44.339 30056 30117 I ReactNativeJS: Native camera initialized
+02-16 00:44:44.356 30056 30117 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:44:44.419 30056 30117 I ReactNativeJS: [BioVault] Camera is ready!
+02-16 00:44:44.563 30056 30117 I ReactNativeJS: [BioVault] Camera is ready!
+02-16 00:44:45.829 30056 30117 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:44:45.851 30056 30117 I ReactNativeJS: '[BioVault] rPPG extraction started:', true
+02-16 00:44:45.944 30056 30117 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:44:46.066 30056 30117 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:44:46.847 30056 30117 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:44:46.864 30056 30117 I ReactNativeJS: '[BioVault] rPPG extraction stopped:', '{"success":true,"videoHash":"0x0000000000000000000000000000000000000000000000000000000000000000","bioSignature":"0x0000000000000000000000000000000000000000000000000000000000000000","hardwareDNA":"0x0000000000000000000000000000000000000000000000000000000000000000","averageBPM":72,"confidence":0.85,"frameCount":0}'
+02-16 00:44:47.964 30056 30117 I ReactNativeJS: '[BioVault] Recording saved to:', '/data/user/0/com.biovault/files/biovault/media/mlo4k6xb3251.json'
+02-16 00:44:51.169 30056 30117 I ReactNativeJS: [BioVault] Anchor button tapped ÔÇö starting anchor flow
+02-16 00:44:51.420 30056 30117 I ReactNativeJS: '[BioVault] Hash check: videoHash invalid?', true, 'proofHash invalid?', true, 'effectiveHash:', 'NONE (will SHA-256)'
+02-16 00:44:51.456 30056 30117 I ReactNativeJS: '[BioVault] Generated SHA-256 fallback hash:', '662b21609f2c4a58f051...'
+02-16 00:44:51.689 30056 30117 I ReactNativeJS: '[BioVault] Anchor result:', '{"success":true,"tx":"0x37cb6dd752512e76"}'
+02-16 00:45:41.405 30056 30117 I ReactNativeJS: Native camera initialized
+02-16 00:45:41.412 30056 30117 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:45:41.524 30056 30117 I ReactNativeJS: [BioVault] Camera is ready!
+02-16 00:45:41.641 30056 30117 I ReactNativeJS: [BioVault] Camera is ready!
+02-16 00:45:45.058 30056 30117 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:45:45.082 30056 30117 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:45:45.100 30056 30117 I ReactNativeJS: '[BioVault] rPPG extraction started:', true
+02-16 00:45:45.174 30056 30117 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:45:46.097 30056 30117 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:45:46.134 30056 30117 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:45:46.614 30056 30117 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:45:46.735 30056 30117 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:45:47.091 30056 30117 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:45:47.111 30056 30117 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:45:47.573 30056 30117 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:45:47.698 30056 30117 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:45:47.843 30056 30117 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:45:47.865 30056 30117 I ReactNativeJS: '[BioVault] rPPG extraction stopped:', '{"success":true,"videoHash":"0x0000000000000000000000000000000000000000000000000000000000000000","bioSignature":"0x0000000000000000000000000000000000000000000000000000000000000000","hardwareDNA":"0x0000000000000000000000000000000000000000000000000000000000000000","averageBPM":72,"confidence":0.85,"frameCount":0}'
+02-16 00:45:48.718 30056 30117 I ReactNativeJS: '[BioVault] Recording saved to:', '/data/user/0/com.biovault/files/biovault/media/mlo4lht6fqvl.json'
+02-16 00:45:56.028 30468 30529 I ReactNativeJS: Running "BioVault" with {"rootTag":11}
+02-16 00:46:33.693 30468 30529 I ReactNativeJS: Native camera initialized
+02-16 00:46:33.710 30468 30529 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:46:33.785 30468 30529 I ReactNativeJS: [BioVault] Camera is ready!
+02-16 00:46:33.953 30468 30529 I ReactNativeJS: [BioVault] Camera is ready!
+02-16 00:46:35.902 30468 30529 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:46:35.935 30468 30529 I ReactNativeJS: '[BioVault] rPPG extraction started:', true
+02-16 00:46:35.938 30468 30529 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:46:36.055 30468 30529 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:46:36.423 30468 30529 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:46:36.534 30468 30529 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:46:36.959 30468 30529 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:46:37.010 30468 30529 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:46:37.943 30468 30529 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:46:37.977 30468 30529 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:46:38.720 30468 30529 I ReactNativeJS: '[BioVault] Rendering CameraScreen, hasPermission:', true
+02-16 00:46:38.734 30468 30529 I ReactNativeJS: '[BioVault] rPPG extraction stopped:', '{"success":true,"videoHash":"0x0000000000000000000000000000000000000000000000000000000000000000","bioSignature":"0x0000000000000000000000000000000000000000000000000000000000000000","hardwareDNA":"0x0000000000000000000000000000000000000000000000000000000000000000","averageBPM":72,"confidence":0.85,"frameCount":0}'
+02-16 00:46:39.562 30468 30529 I ReactNativeJS: '[BioVault] Recording saved to:', '/data/user/0/com.biovault/files/biovault/media/mlo4ml1fap9u.json'
+02-16 00:46:43.314 30468 30529 I ReactNativeJS: [BioVault] Anchor button tapped ÔÇö starting anchor flow
+02-16 00:46:43.536 30468 30529 I ReactNativeJS: '[BioVault] Hash check: videoHash invalid?', true, 'proofHash invalid?', true, 'effectiveHash:', 'NONE (will SHA-256)'
+02-16 00:46:43.572 30468 30529 I ReactNativeJS: '[BioVault] Generated SHA-256 fallback hash:', '7e540610a775947a70d6...'
+02-16 00:46:43.787 30468 30529 I ReactNativeJS: '[BioVault] Anchor result:', '{"success":true,"tx":"0xbc9fc392430a17d8"}'

@@ -234,3 +234,42 @@ if(NOT HAVE_LIBSODIUM)
     message(WARNING "⚠️  vcpkg install libsodium / brew install libsodium / apt install libsodium-dev")
 endif()
 message(STATUS "==============================================")
+
+# ============================================================================
+# Unit Tests (Optional)
+# ============================================================================
+option(BUILD_TESTS "Build unit tests" OFF)
+
+if(BUILD_TESTS)
+    enable_testing()
+    
+    add_executable(biovault_tests test/biovault_tests.cpp ${SOURCES})
+    
+    # Same compile definitions as the library
+    if(HAVE_OPENCV)
+        target_compile_definitions(biovault_tests PRIVATE HAVE_OPENCV)
+    endif()
+    if(HAVE_LIBSODIUM)
+        target_compile_definitions(biovault_tests PRIVATE HAVE_LIBSODIUM)
+    endif()
+    if(HAVE_BLAKE3)
+        target_compile_definitions(biovault_tests PRIVATE HAVE_BLAKE3)
+    endif()
+    
+    target_include_directories(biovault_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        $<$<BOOL:${HAVE_LIBSODIUM}>:${LIBSODIUM_INCLUDE_DIR}>
+        $<$<BOOL:${HAVE_BLAKE3}>:${BLAKE3_INCLUDE_DIR}>
+    )
+    
+    target_link_libraries(biovault_tests PRIVATE
+        $<$<BOOL:${HAVE_OPENCV}>:${OpenCV_LIBS}>
+        $<$<BOOL:${HAVE_LIBSODIUM}>:${LIBSODIUM_LIBRARY}>
+        $<$<BOOL:${HAVE_BLAKE3}>:${BLAKE3_LIBRARY}>
+    )
+    
+    add_test(NAME BioVaultCppTests COMMAND biovault_tests)
+    
+    message(STATUS "Unit tests: ENABLED (build target: biovault_tests)")
+endif()

@@ -77,9 +77,9 @@ export default function ResultsScreen({navigation, route}) {
       let proofIPFSCID = '';
       let mediaIPFSCID = '';
       try {
-        // Upload proof-of-reality metadata to IPFS (with retry)
+        // Upload proof-of-reality metadata to IPFS (smart: backend → Pinata fallback)
         const ipfsUpload = await withRetry(
-          () => apiService.uploadToIPFS({
+          () => apiService.smartUploadToIPFS({
             data: proofData,
             filename: 'proof_of_reality.json',
             metadata: proofOfRealityJSON,
@@ -97,7 +97,7 @@ export default function ResultsScreen({navigation, route}) {
             if (fileExists) {
               const fileContent = await RNFS.readFile(mediaFilePath, 'utf8');
               const fileBase64 = stringToBase64(fileContent);
-              const mediaUpload = await apiService.uploadToIPFS({
+              const mediaUpload = await apiService.smartUploadToIPFS({
                 data: fileBase64,
                 filename: 'recording_data.json',
                 metadata: { type: 'biovault_recording', proof: proofIPFSCID },
@@ -132,11 +132,11 @@ export default function ResultsScreen({navigation, route}) {
         console.log('[BioVault] Generated SHA-256 fallback hash:', effectiveHash.slice(0, 20) + '...');
       }
 
-      // Step 3: Anchor to blockchain via backend (with retry)
+      // Step 3: Anchor to blockchain (smart: backend → in-app wallet fallback)
       let result;
       try {
         result = await withRetry(
-          () => apiService.anchorMedia({
+          () => apiService.smartAnchorMedia({
             mediaHash: effectiveHash,
             bioSignature: bioSignature || `bpm:${averageBPM}:conf:${confidenceScore}`,
             hardwareID: hardwareDNA || 'unknown-device',

@@ -13,8 +13,10 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiService from '../services/ApiService';
+import blockchainService from '../services/BlockchainService';
 
 const AUTH_STORAGE_KEY = 'biovault_auth';
+const USER_PROFILE_KEY = 'biovault_user_profile';
 
 export default function LoginScreen({navigation}) {
   const [isRegister, setIsRegister] = useState(false);
@@ -24,47 +26,68 @@ export default function LoginScreen({navigation}) {
   const [loading, setLoading] = useState(false);
   const [autoChecking, setAutoChecking] = useState(true);
 
-  // Auto-login if tokens exist
+  // ── Auto-login: works OFFLINE — never blocks on backend ──
   useEffect(() => {
     (async () => {
       try {
-        const stored = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
-        if (stored) {
-          const {accessToken, refreshToken} = JSON.parse(stored);
-          if (accessToken) {
-            apiService.setAccessToken(accessToken);
-            // Quick validate — try a lightweight endpoint
+        await apiService.init();
+
+        // Check if user has signed in before (local profile saved)
+        const profile = await AsyncStorage.getItem(USER_PROFILE_KEY);
+        const stored  = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
+
+        if (profile || stored) {
+          // User has previously authenticated — go straight to Home.
+          // We trust the local credential cache; the backend is optional.
+          if (stored) {
             try {
-              await apiService.healthCheck();
-              navigation.replace('Home');
-              return;
-            } catch (_) {
-              // Token may be expired, try refresh
-              if (refreshToken) {
-                try {
-                  const res = await apiService.refreshToken(refreshToken);
-                  if (res.accessToken) {
-                    await persistTokens(res.accessToken, res.refreshToken || refreshToken);
-                    navigation.replace('Home');
-                    return;
-                  }
-                } catch (_r) {
-                  // Refresh also failed, show login form
-                }
-              }
-            }
+              const { accessToken } = JSON.parse(stored);
+              if (accessToken) apiService.setAccessToken(accessToken);
+            } catch (_) {}
           }
+
+          // Pre-initialize blockchain service in background (non-blocking)
+          blockchainService.init().catch(() => {});
+
+          // Attempt a background token refresh (non-blocking — don't wait)
+          _backgroundRefresh(stored).catch(() => {});
+
+          navigation.replace('Home');
+          return;
         }
       } catch (_) {}
       setAutoChecking(false);
     })();
   }, []);
 
+  /** Try to refresh JWT in background — never blocks navigation. */
+  const _backgroundRefresh = async (storedRaw) => {
+    try {
+      if (!storedRaw) return;
+      const { refreshToken } = JSON.parse(storedRaw);
+      if (!refreshToken) return;
+      const res = await apiService.refreshToken(refreshToken);
+      if (res.accessToken) {
+        await persistTokens(res.accessToken, res.refreshToken || refreshToken);
+      }
+    } catch (_) {
+      // Backend unreachable — that's fine, standalone mode will handle it
+    }
+  };
+
   const persistTokens = async (accessToken, refreshToken) => {
     apiService.setAccessToken(accessToken);
     await AsyncStorage.setItem(
       AUTH_STORAGE_KEY,
       JSON.stringify({accessToken, refreshToken}),
+    );
+  };
+
+  /** Save local user profile so auto-login works even without backend. */
+  const persistProfile = async (email) => {
+    await AsyncStorage.setItem(
+      USER_PROFILE_KEY,
+      JSON.stringify({ email, lastLogin: Date.now() }),
     );
   };
 
@@ -90,6 +113,7 @@ export default function LoginScreen({navigation}) {
 
       if (result.accessToken) {
         await persistTokens(result.accessToken, result.refreshToken);
+        await persistProfile(email.trim());
         navigation.replace('Home');
       } else {
         Alert.alert('Error', result.error || 'Unexpected response from server.');
@@ -97,14 +121,32 @@ export default function LoginScreen({navigation}) {
     } catch (error) {
       const msg =
         error?.message || (isRegister ? 'Registration failed' : 'Login failed');
-      Alert.alert('Error', msg);
+      // Offer standalone mode if backend is unreachable
+      if (msg.includes('Network request failed') || msg.includes('timeout') || msg.includes('Failed to fetch')) {
+        Alert.alert(
+          'Server Unreachable',
+          'The backend server is not available. You can continue in standalone mode — verification and viewing will work directly on the blockchain.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Continue Standalone', onPress: () => enterStandaloneMode() },
+          ],
+        );
+      } else {
+        Alert.alert('Error', msg);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const skipLogin = () => {
-    // Allow using the app without auth (API key fallback in dev)
+  /** Enter app without backend — blockchain reads + cached data still work. */
+  const enterStandaloneMode = async () => {
+    await AsyncStorage.setItem(
+      USER_PROFILE_KEY,
+      JSON.stringify({ email: email.trim() || 'standalone', lastLogin: Date.now(), standalone: true }),
+    );
+    // Pre-init blockchain direct access
+    blockchainService.init().catch(() => {});
     navigation.replace('Home');
   };
 
@@ -192,10 +234,17 @@ export default function LoginScreen({navigation}) {
           </TouchableOpacity>
 
           {__DEV__ && (
-            <TouchableOpacity style={styles.skipRow} onPress={skipLogin}>
+            <TouchableOpacity style={styles.skipRow} onPress={enterStandaloneMode}>
               <Text style={styles.skipText}>Skip (dev only)</Text>
             </TouchableOpacity>
           )}
+
+          <TouchableOpacity style={styles.standaloneRow} onPress={enterStandaloneMode}>
+            <Text style={styles.standaloneText}>Continue without server →</Text>
+            <Text style={styles.standaloneHint}>
+              Verification & viewing work directly on blockchain
+            </Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -291,5 +340,22 @@ const styles = StyleSheet.create({
     color: '#555',
     fontSize: 13,
     textDecorationLine: 'underline',
+  },
+  standaloneRow: {
+    alignItems: 'center',
+    marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#2d2d5f',
+  },
+  standaloneText: {
+    color: '#10b981',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  standaloneHint: {
+    color: '#555',
+    fontSize: 11,
+    marginTop: 4,
   },
 });

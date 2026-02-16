@@ -3,6 +3,7 @@ const logger = require('../utils/logger');
 const axios = require('axios');
 const { validate, schemas } = require('../middleware/validation');
 const { requireAuth } = require('../middleware/auth');
+const pinata = require('../utils/pinata');
 
 const router = express.Router();
 
@@ -31,6 +32,9 @@ async function testIPFSConnection() {
 
 let ipfsAvailable = false;
 testIPFSConnection().then(available => { ipfsAvailable = available; });
+
+// Test Pinata on startup (non-blocking)
+pinata.testConnection();
 
 /**
  * POST /api/ipfs/upload
@@ -70,6 +74,9 @@ router.post('/upload', requireAuth, validate(schemas.ipfsUpload), async (req, re
         
         const cid = response.data.Hash;
         logger.info(`📦 Uploaded to IPFS: ${cid} (${response.data.Size} bytes)`);
+        
+        // Redundant pin on Pinata (fire-and-forget — don't block response)
+        pinata.pinByCid(cid, filename).catch(() => {});
         
         // Optionally store metadata
         if (metadata) {

@@ -19,6 +19,7 @@ const ipfsRoutes = require('./routes/ipfs');
 const mediaRoutes = require('./routes/media');
 const zkpRoutes = require('./routes/zkp');
 const authRoutes = require('./routes/auth');
+const { txQueueMiddleware } = require('./middleware/txQueue');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -200,9 +201,15 @@ app.get('/health', async (req, res) => {
     res.status(overallHealthy ? 200 : 503).json(checks);
 });
 
+// Transaction queue stats endpoint
+app.get('/api/web3/txqueue/stats', (req, res) => {
+    const { txQueue } = require('./middleware/txQueue');
+    res.json(txQueue.getStats());
+});
+
 // API Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/web3', web3Routes);
+app.use('/api/web3', txQueueMiddleware, web3Routes);
 app.use('/api/ipfs', ipfsRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api/zkp', zkpRoutes);

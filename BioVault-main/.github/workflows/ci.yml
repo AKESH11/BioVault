@@ -62,6 +62,30 @@ jobs:
           sleep 5
           npx hardhat run scripts/deploy.js --network localhost
 
+      # Create .env from deploy output
+      - name: Configure backend .env
+        run: |
+          cd backend
+          cp .env.local .env 2>/dev/null || true
+          # Override with localhost addresses from deployments.json
+          node -e "
+            const d = require('../smart-contracts/deployments.json').localhost;
+            const lines = [
+              'NODE_ENV=test',
+              'PORT=3000',
+              'POLYGON_RPC_URL=http://127.0.0.1:8545',
+              'IPFS_API_URL=http://127.0.0.1:5001',
+              'API_KEY=bv-dev-key-2024-change-in-production',
+              'JWT_SECRET=ci-test-secret-not-for-production',
+              'JWT_REFRESH_SECRET=ci-test-refresh-secret',
+              'DEPLOYER_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+              'MEDIA_ANCHOR_CONTRACT=' + d.MediaAnchor,
+              'AUTHENTICITY_TOKEN_CONTRACT=' + d.AuthenticityToken,
+              'VERIFIER_CONTRACT=' + (d.Verifier || ''),
+            ];
+            require('fs').writeFileSync('.env', lines.join('\n'));
+          "
+
       # Start backend
       - name: Start Backend
         run: |
@@ -71,10 +95,7 @@ jobs:
 
       # Run E2E tests
       - name: Run E2E Tests
-        run: cd backend && npm test
-        env:
-          IPFS_API_URL: http://127.0.0.1:5001
-          POLYGON_RPC_URL: http://127.0.0.1:8545
+        run: cd backend && node test/e2e.test.js
 
   # --------------------------------------------------------------------------
   # Job 3: Android APK Build
@@ -101,6 +122,22 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - run: npm ci
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('mobile-app/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Build JS Bundle
+        run: |
+          npx react-native bundle --platform android --dev false \
+            --entry-file index.js \
+            --bundle-output android/app/src/main/assets/index.android.bundle \
+            --assets-dest android/app/src/main/res/
 
       - name: Build Debug APK
         run: |
